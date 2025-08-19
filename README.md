@@ -39,3 +39,6 @@ MgO:SLTは熱伝導率が高くて光損傷耐性が高いから、温度調節�
 
 # refs
 * [193出せるQPMによる検査装置](https://www.jstage.jst.go.jp/article/lsj/39/5/39_319/_pdf/-char/ja)
+
+# TODO
+普通にjuliaでbfgsとかしたほうがいい気がしてきた、jaxだと超時間がかかる、ドメイン全部パラメータにする場合はうまくいきそうだが、それ以外が酷い
