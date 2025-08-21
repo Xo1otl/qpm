@@ -70,6 +70,4 @@ def simulate_twm(superlattice: jnp.ndarray, delta_k1: jnp.ndarray, delta_k2: jnp
 
     B_final, _ = lax.scan(ipm1_scan_step, B_initial, superlattice)
 
-    shg_eff = jnp.abs(B_final[1])**2
-    thg_eff = jnp.abs(B_final[2])**2
-    return jnp.array([shg_eff, thg_eff])
+    return B_final
