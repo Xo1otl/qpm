@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [{ name = "Xo1otl", email = "xolotl.mictl4n@gmail.com" }]
 requires-python = ">=3.12"
 dependencies = [
-    "flax>=0.11.1",
+    "flax",
 ]
 
 [build-system]

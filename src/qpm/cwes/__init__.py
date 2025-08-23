@@ -21,7 +21,7 @@ def phi(omega: jnp.ndarray, h: float) -> jnp.ndarray:
 
 
 @jit
-def predictor_ipm1(B_in: jnp.ndarray, h: float, kappa_val: float, L: jnp.ndarray) -> jnp.ndarray:
+def propagate_domain(B_in: jnp.ndarray, h: float, kappa_val: float, L: jnp.ndarray) -> jnp.ndarray:
     """
     IPM1 (Interaction Picture Method 1st order) スキームの1ステップを計算する。
     """
@@ -63,11 +63,11 @@ def simulate_twm(superlattice: jnp.ndarray, delta_k1: jnp.ndarray, delta_k2: jnp
 
     L = get_L(delta_k1, delta_k2)
 
-    def ipm1_scan_step(B_carry, domain):
+    def propagator_step(B_carry, domain):
         h, kappa_val = domain
-        B_next = predictor_ipm1(B_carry, h, kappa_val, L)
+        B_next = propagate_domain(B_carry, h, kappa_val, L)
         return B_next, None
 
-    B_final, _ = lax.scan(ipm1_scan_step, B_initial, superlattice)
+    B_final, _ = lax.scan(propagator_step, B_initial, superlattice)
 
     return B_final
