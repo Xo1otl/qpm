@@ -1,7 +1,7 @@
 ## **研究目的**
 APPLNの高精度かつ高速なシミュレーションをする
 
-### **理論**
+## **理論**
 #### **1. 結合波方程式**
 カスケード二次非線形過程（SHG+SFG）による第三高調波発生（THG）は、以下の結合波方程式系で記述される。
 $$\frac{d A_1}{dz} = i \kappa(z) \left[ A_2 A_1^* e^{i\Delta k_1 z} + A_3 A_2^* e^{i\Delta k_2 z} \right] \\ \frac{d A_2}{dz} = i \, 2\kappa(z) \left[ \frac{1}{2} A_1^2 e^{-i\Delta k_1 z} + A_3 A_1^* e^{i\Delta k_2 z} \right] \\ \frac{d A_3}{dz} = i \, 3\kappa(z) \left[ A_1 A_2 e^{-i\Delta k_2 z} \right]$$
@@ -48,7 +48,7 @@ $$\boldsymbol{B}(z_n+h) = e^{i\boldsymbol{L}h} \boldsymbol{B}(z_n) + i \int_0^h 
 #### **1. 概要**
 状態ベクトル $\boldsymbol{B}_n$ をドメイン長 $h_n$ だけ時間発展させ、予測状態 $\boldsymbol{B}_{pred}$ を算出する。
 
-微小である$\kappa$が乗算されている$K_{nl}$を無視して運動方程式を解くことで得られる、$\boldsymbol{B}(z_n + \tau')=e^{i\boldsymbol{L}h}\boldsymbol{B}(z_n)$を用いると、非線形項を解析的に積分できる。
+微小である$\kappa$が乗算されている$K_{nl}$を無視して運動方程式を解くことで得られる、$\boldsymbol{B}(z_n + \tau')=e^{i\boldsymbol{L}\tau'}\boldsymbol{B}(z_n)$を用いると、非線形項を解析的に積分できる。
 
 #### **2. 入力**
 * ステップ開始時の状態ベクトル: $\boldsymbol{B}_n = (B_{1n}, B_{2n}, B_{3n})^T$
