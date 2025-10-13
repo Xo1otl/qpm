@@ -4,10 +4,8 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [{ name = "Xo1otl", email = "xolotl.mictl4n@gmail.com" }]
-requires-python = ">=3.12"
-dependencies = [
-    "flax",
-]
+requires-python = ">=3.13"
+dependencies = ["flax"]
 
 [build-system]
 requires = ["hatchling"]
