@@ -186,18 +186,3 @@ $$
 &= e^{\boldsymbol{L}h} \boldsymbol{B}(z_n) + \int_0^h e^{\boldsymbol{L}(h-\tau')} \boldsymbol{N}(\boldsymbol{B}(z_n+\tau')) d\tau'
 \end{aligned}
 $$
-
-### **ETD法による数値計算**
-
-Exponential Time Differencing (ETD) 法は、恒等変形によって導出された積分形式
-$$\boldsymbol{B}(z_n+h) = e^{\boldsymbol{L}h} \boldsymbol{B}(z_n) + \int_0^h e^{\boldsymbol{L}(h-\tau')} \boldsymbol{N}(\boldsymbol{B}(z_n+\tau')) d\tau'$$
-から出発する。この式の右辺にある積分は、被積分関数の中に未来の値 $\boldsymbol{B}(z_n+\tau')$ が含まれているため、このままでは直接計算できない。
-
-しかし、以下の2つの妥当な仮定を置くことができる。
-
-1.  変数 $\boldsymbol{B}(z)$ が緩やかに変化するため、それから構成される非線形項 $\boldsymbol{N}(\boldsymbol{B})$ もまた、緩やかに変化する。
-2.  数値計算の1ステップである微小区間 $h$ の中では、結合係数 $\kappa(z)$ もほぼ一定であるとみなせる（$\kappa(z_n+\tau') \approx \kappa(z_n)$）。
-
-ETD法は、これらの仮定に基づき、積分内の非線形項 $\boldsymbol{N}(\boldsymbol{B}(z_n+\tau'))$ を、ステップの開始点 $z_n$ での既知の値（例: $\boldsymbol{N}(\boldsymbol{B}(z_n))$）などを用いて低次の多項式で近似する。
-
-このアプローチでは、問題の剛直な部分（線形項）を厳密に解き、変化が緩やかな部分（非線形項）のみを近似するため、位相不整合量 $\Delta k_j$ が大きい場合でも、数値計算の安定性を保ったまま大きなステップ幅 $h$ を取ることが可能になる。
