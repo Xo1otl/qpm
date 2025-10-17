@@ -1,13 +1,14 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
+import jax
 import jax.numpy as jnp
 
 # --- 型定義 ---
-Grating = jnp.ndarray  # shape: (num_domains, 2) -> [width, kappa]
-DomainIndexes = jnp.ndarray  # shape: (num_domains,) -> [0, 1, ..., N-1]
-WidthFn = Callable[[DomainIndexes], jnp.ndarray]
-KappaFn = Callable[[DomainIndexes], jnp.ndarray]
+Grating = jax.Array  # shape: (num_domains, 2) -> [width, kappa]
+DomainIndexes = jax.Array  # shape: (num_domains,) -> [0, 1, ..., N-1]
+WidthFn = Callable[[DomainIndexes], jax.Array]
+KappaFn = Callable[[DomainIndexes], jax.Array]
 
 
 # --- データ構造とファクトリ関数 ---
@@ -33,7 +34,7 @@ def uniform_profile(num_domains: int, period: float, kappa_mag: float, start_sig
     """
     domain_width = period / 2.0
 
-    def kappa_fn(i: DomainIndexes) -> jnp.ndarray:
+    def kappa_fn(i: DomainIndexes) -> jax.Array:
         signs = jnp.power(-1.0, i)
         return jnp.sign(start_sign) * jnp.full_like(i, kappa_mag, dtype=jnp.float32) * signs
 
@@ -57,10 +58,10 @@ def tapered_profile(num_domains: int, start_width: float, chirp_rate: float, kap
         start_sign: 最初のドメインのkappaの符号 (+1.0 または -1.0)。
     """
 
-    def width_fn(i: DomainIndexes) -> jnp.ndarray:
+    def width_fn(i: DomainIndexes) -> jax.Array:
         return start_width / jnp.sqrt(1 + 2 * chirp_rate * start_width * i)
 
-    def kappa_fn(i: DomainIndexes) -> jnp.ndarray:
+    def kappa_fn(i: DomainIndexes) -> jax.Array:
         signs = jnp.power(-1.0, i)
         return jnp.sign(start_sign) * jnp.full_like(i, kappa_mag, dtype=jnp.float32) * signs
 

@@ -1,22 +1,23 @@
+import jax
 import jax.numpy as jnp
 from jax import jit, lax
 
 # The result of a batch TWM simulation.
 # Shape: (num_sweep_points, 3)
-type BatchTwmResult = jnp.ndarray
+type BatchTwmResult = jax.Array
 
 OMEGA_SMALL_EPS: float = 1e-9
 SUPERLATTICE_SPEC: tuple[str, tuple[str, str]] = ("domain", ("h", "kappa"))
 
 
 @jit
-def get_lin(delta_k1: jnp.ndarray, delta_k2: jnp.ndarray) -> jnp.ndarray:
+def get_lin(delta_k1: jax.Array, delta_k2: jax.Array) -> jax.Array:
     """線形演算子Lを生成"""
     return jnp.array([0.0, delta_k1 * 1j, (delta_k1 + delta_k2) * 1j], dtype=jnp.complex64)
 
 
 @jit
-def phi(omega: jnp.ndarray, h: float) -> jnp.ndarray:
+def phi(omega: jax.Array, h: float) -> jax.Array:
     """
     ETD予測子で使用される積分関数 Φ(Ω, h) = (e^(Ωh) - 1) / Ω を計算する。
     JAXのjitに対応するため、jnp.whereで条件分岐を処理する。
@@ -28,7 +29,7 @@ def phi(omega: jnp.ndarray, h: float) -> jnp.ndarray:
 
 
 @jit
-def propagate_domain(b_in: jnp.ndarray, h: float, kappa_val: float, lin: jnp.ndarray) -> jnp.ndarray:
+def propagate_domain(b_in: jax.Array, h: float, kappa_val: float, lin: jax.Array) -> jax.Array:
     """
     ETD スキームの1ステップを計算する。
     """
@@ -51,11 +52,11 @@ def propagate_domain(b_in: jnp.ndarray, h: float, kappa_val: float, lin: jnp.nda
 
 
 def simulate_twm(
-    superlattice: jnp.ndarray,
-    delta_k1: jnp.ndarray,
-    delta_k2: jnp.ndarray,
-    b_initial: jnp.ndarray,
-) -> jnp.ndarray:
+    superlattice: jax.Array,
+    delta_k1: jax.Array,
+    delta_k2: jax.Array,
+    b_initial: jax.Array,
+) -> jax.Array:
     """指定された単一の波長、温度、格子で伝播を計算する。"""
     domain_label, field_names = SUPERLATTICE_SPEC
     if superlattice.ndim != len(SUPERLATTICE_SPEC) or superlattice.shape[-1] != len(field_names):
@@ -72,7 +73,7 @@ def simulate_twm(
 
     lin = get_lin(delta_k1, delta_k2)
 
-    def propagator_step(b_carry: jnp.ndarray, domain: jnp.ndarray) -> tuple[jnp.ndarray, None]:
+    def propagator_step(b_carry: jax.Array, domain: jax.Array) -> tuple[jax.Array, None]:
         h, kappa_val = domain
         return propagate_domain(b_carry, h, kappa_val, lin), None
 

@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import plotly.express as px  # pyright: ignore[reportMissingTypeStubs]
@@ -10,7 +11,7 @@ if TYPE_CHECKING:
     from ._builder import Grating
 
 
-def _plot_structure_interactive(positions: jnp.ndarray, lengths: jnp.ndarray, kappas: jnp.ndarray) -> go.Figure:
+def _plot_structure_interactive(positions: jax.Array, lengths: jax.Array, kappas: jax.Array) -> go.Figure:
     """
     Plots the physical structure of the grating interactively using Plotly.
 
@@ -60,7 +61,7 @@ def _plot_structure_interactive(positions: jnp.ndarray, lengths: jnp.ndarray, ka
     return fig
 
 
-def _plot_structure_heatmap(kappas: jnp.ndarray) -> go.Figure:
+def _plot_structure_heatmap(kappas: jax.Array) -> go.Figure:
     """
     Visualizes the grating structure as a heatmap (barcode view) using Plotly.
 
@@ -84,7 +85,7 @@ def _plot_structure_heatmap(kappas: jnp.ndarray) -> go.Figure:
     return fig
 
 
-def _plot_spectrum(positions: jnp.ndarray, kappas: jnp.ndarray, total_length: float) -> go.Figure:
+def _plot_spectrum(positions: jax.Array, kappas: jax.Array, total_length: float) -> go.Figure:
     """
     Plots the spatial frequency spectrum interactively using Plotly.
 
@@ -139,7 +140,7 @@ def _plot_spectrum(positions: jnp.ndarray, kappas: jnp.ndarray, total_length: fl
     return fig
 
 
-def _plot_histogram(lengths: jnp.ndarray, kappas: jnp.ndarray) -> go.Figure:
+def _plot_histogram(lengths: jax.Array, kappas: jax.Array) -> go.Figure:
     """
     Plots histograms of domain lengths and kappa values interactively using Plotly.
 
