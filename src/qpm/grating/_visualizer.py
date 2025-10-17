@@ -7,7 +7,7 @@ import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
 from plotly.subplots import make_subplots  # pyright: ignore[reportMissingTypeStubs]
 
 if TYPE_CHECKING:
-    from ._builder import Section
+    from ._builder import Grating
 
 
 def _plot_structure_interactive(positions: jnp.ndarray, lengths: jnp.ndarray, kappas: jnp.ndarray) -> go.Figure:
@@ -183,23 +183,23 @@ def _plot_histogram(lengths: jnp.ndarray, kappas: jnp.ndarray) -> go.Figure:
     return fig
 
 
-def plot_section_array(section_array: "Section", *, mode: str = "interactive") -> None:
+def visualize(grating: "Grating", *, mode: str = "interactive") -> None:
     """
-    Convenience function to visualize a SectionArray in various modes using Plotly.
+    Convenience function to visualize a Grating in various modes using Plotly.
 
     Args:
-        section_array: The SectionArray to visualize (N x 2 JAX array).
+        grating: The Grating to visualize (N x 2 JAX array).
         mode: Visualization mode ('interactive', 'heatmap', 'spectrum', 'histogram').
     """
-    if section_array.size == 0:
+    if grating.size == 0:
         fig = go.Figure()
-        fig.add_annotation(text="Empty SectionArray", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        fig.add_annotation(text="Empty Grating", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
         fig.update_layout(xaxis_visible=False, yaxis_visible=False, plot_bgcolor="white")
         fig.show()
         return
 
     # Pre-calculate common values
-    lengths, kappas = section_array[:, 0], section_array[:, 1]
+    lengths, kappas = grating[:, 0], grating[:, 1]
     positions = jnp.cumsum(jnp.concatenate([jnp.array([0.0]), lengths[:-1]]))
     total_length = float(jnp.sum(lengths))
 
