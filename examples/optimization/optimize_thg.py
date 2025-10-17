@@ -17,8 +17,6 @@ def tv_regularization(domain_widths: Array, lambda_val: float) -> Array:
     return lambda_val * jnp.sum(jnp.abs(jnp.diff(domain_widths)))
 
 
-# A dictionary to hold regularization functions for modular access.
-# This makes it easy to switch between or add new regularization methods.
 REGULARIZATION_FNS: dict[str, Callable[[Array, float], Array]] = {
     "tv": tv_regularization,
 }
@@ -29,7 +27,7 @@ REGULARIZATION_FNS: dict[str, Callable[[Array, float], Array]] = {
 class Config:
     design_temp: float = 70.0
     design_wl: float = 1.031
-    target_length: float = 2000.0
+    target_length: float = 1000.0
     max_iters: int = 200
     prng_seed: int = 42
     kappa_mag: float = 1.31e-4 / (2 / jnp.pi)
@@ -55,15 +53,15 @@ def make_loss_fn(
     regularization_fn: Callable[[Array, float], Array] | None = None,
     lambda_val: float = 0.0,
 ) -> Callable[[Array], Array]:
-    """Creates a loss function that returns the negative THG efficiency, with optional regularization."""
+    """Creates a loss function that returns the negative THW power, with optional regularization."""
 
     @jit
     def loss_fn(domain_widths: Array) -> Array:
         superlattice = jnp.stack([domain_widths, sim_params.kappa_array], axis=1)
         b_final = cwes.simulate_twm(superlattice, sim_params.delta_k1, sim_params.delta_k2, sim_params.b_initial)
         # [FW, SHW, THW]
-        efficiency = jnp.abs(b_final[2]) ** 2
-        loss = -efficiency
+        thw_power = jnp.abs(b_final[2]) ** 2
+        loss = -thw_power
         if regularization_fn:
             loss += regularization_fn(domain_widths, lambda_val)
         return loss
@@ -119,18 +117,18 @@ def _run_optimization(
         return optimized_params
 
     print("3. Running JIT-compiled optimization...")
-    print(f"   - Initial Efficiency: {-loss_fn(initial_widths):.4f}")
+    print(f"   - Initial THW power: {-loss_fn(initial_widths):.4f}")
 
     optimized_widths = run_full_optimization(initial_widths)
     optimized_widths.block_until_ready()
 
-    print(f"   - Optimized Efficiency: {-loss_fn(optimized_widths):.4f}")
+    print(f"   - Optimized THW power: {-loss_fn(optimized_widths):.4f}")
     return optimized_widths
 
 
 # --- Visualization Functions ---
 def _calculate_spectrum(domain_widths: Array, sim_params: SimulationParameters, config: Config) -> tuple[Array, Array]:
-    """Helper function to compute the THG efficiency spectrum for a given grating."""
+    """Helper function to compute the THW power spectrum for a given grating."""
     wls = jnp.linspace(config.wl_start, config.wl_end, config.num_points)
     delta_k1s = mgoslt.calc_twm_delta_k(wls, wls, config.design_temp)
     delta_k2s = mgoslt.calc_twm_delta_k(wls, wls / 2, config.design_temp)
@@ -140,8 +138,8 @@ def _calculate_spectrum(domain_widths: Array, sim_params: SimulationParameters, 
     superlattice = jnp.stack([domain_widths, sim_params.kappa_array], axis=1)
     final_vectors = compute_spectrum_vmap(superlattice, delta_k1s, delta_k2s, sim_params.b_initial)
     # [FW, SHW, THW]
-    efficiencies = jnp.abs(final_vectors[:, 2]) ** 2
-    return wls, efficiencies
+    thw_powers = jnp.abs(final_vectors[:, 2]) ** 2
+    return wls, thw_powers
 
 
 def _plot_domain_widths(initial_widths: Array, optimized_widths: Array) -> None:
@@ -159,13 +157,13 @@ def _plot_domain_widths(initial_widths: Array, optimized_widths: Array) -> None:
 
 
 # REFACTOR: This function signature is also much cleaner now.
-def _plot_efficiency_spectrum(
+def _plot_thw_power_spectrum(
     initial_widths: Array,
     optimized_widths: Array,
     sim_params: SimulationParameters,
     config: Config,
 ) -> None:
-    """Plots the THG efficiency spectrum before and after optimization."""
+    """Plots the THW power spectrum before and after optimization."""
     wls, initial_effs = _calculate_spectrum(initial_widths, sim_params, config)
     _, optimized_effs = _calculate_spectrum(optimized_widths, sim_params, config)
 
@@ -180,9 +178,9 @@ def _plot_efficiency_spectrum(
         annotation_position="bottom right",
     )
     fig.update_layout(
-        title_text="THG Efficiency Spectrum Comparison",
+        title_text="THG THW power Spectrum Comparison",
         xaxis_title="Fundamental Wavelength (μm)",
-        yaxis_title="Conversion Efficiency",
+        yaxis_title="Conversion THW power",
         template="plotly_white",
     )
     fig.show()
@@ -197,11 +195,12 @@ def main() -> None:
 
     # REFACTOR: Bundle the fixed simulation parameters into a single object.
     # This clarifies the data flow of the entire script.
+    fw_initial = 1 / 3
     sim_params = SimulationParameters(
         delta_k1=delta_k1,
         delta_k2=delta_k2,
         kappa_array=kappa_array,
-        b_initial=jnp.array([0.5, 1.0, 0.0], dtype=jnp.complex64),
+        b_initial=jnp.array([jnp.sqrt(fw_initial), jnp.sqrt(fw_initial * 2), 0.0], dtype=jnp.complex64),
     )
 
     # 2. Run the optimization with the clean parameter objects
@@ -210,7 +209,7 @@ def main() -> None:
     # 3. Visualize the results
     print("4. Visualizing optimization results...")
     _plot_domain_widths(initial_widths, optimized_widths)
-    _plot_efficiency_spectrum(initial_widths, optimized_widths, sim_params, config)
+    _plot_thw_power_spectrum(initial_widths, optimized_widths, sim_params, config)
 
 
 main()
