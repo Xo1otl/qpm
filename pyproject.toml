@@ -5,15 +5,11 @@ description = "Add your description here"
 readme = "README.md"
 authors = [{ name = "Xo1otl", email = "xolotl.mictl4n@gmail.com" }]
 requires-python = ">=3.13"
-dependencies = [
-    "flax",
-    "jax-tqdm>=0.4.0",
-    "plotly",
-]
+dependencies = ["flax", "jax-tqdm>=0.4.0", "plotly"]
 
 [tool.ruff]
 line-length = 150
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["D", "ERA001", "T201"]
+ignore = ["D", "ERA001", "T201", "INP001"]

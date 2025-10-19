@@ -11,6 +11,17 @@ from jax_tqdm.loop_pbar import loop_tqdm
 from qpm import cwes, mgoslt
 
 
+# --- Regularization Strategies ---
+def tv_regularization(domain_widths: Array, lambda_val: float) -> Array:
+    """Total Variation (TV) regularization penalizes the absolute difference between adjacent parameter values."""
+    return lambda_val * jnp.sum(jnp.abs(jnp.diff(domain_widths)))
+
+
+REGULARIZATION_FNS: dict[str, Callable[[Array, float], Array]] = {
+    "tv": tv_regularization,
+}
+
+
 # --- Data Structures for Configuration and Parameters ---
 @dataclass(frozen=True)
 class Config:
@@ -24,6 +35,9 @@ class Config:
     wl_start: float = 1.025
     wl_end: float = 1.035
     num_points: int = 500
+    # Regularization parameters
+    regularization: str | None = "tv"
+    lambda_val: float = 1e-4
 
 
 @dataclass(frozen=True)
@@ -35,15 +49,28 @@ class SimulationParameters:
 
 
 # --- Core JAX Functions ---
-def make_loss_fn(sim_params: SimulationParameters) -> Callable[[Array], Array]:
-    """Creates a loss function that returns the negative SHW power."""
+def make_loss_fn(
+    sim_params: SimulationParameters,
+    config: Config,  # noqa: ARG001
+    regularization_fn: Callable[[Array, float], Array] | None = None,
+    lambda_val: float = 0.0,
+) -> Callable[[Array], Array]:
+    """Creates a loss function that returns the negative SHW power with optional regularization."""
 
     @jit
     def loss_fn(domain_widths: Array) -> Array:
         superlattice = jnp.stack([domain_widths, sim_params.kappa_array], axis=1)
         b_final = cwes.simulate_twm(superlattice, sim_params.delta_k1, sim_params.delta_k2, sim_params.b_initial)
         shw_power = jnp.abs(b_final[1]) ** 2
-        return -shw_power
+
+        # Base loss is negative SHW power (to maximize it)
+        loss = -shw_power
+
+        # Add regularization if provided
+        if regularization_fn:
+            loss += regularization_fn(domain_widths, lambda_val)
+
+        return loss
 
     return loss_fn
 
@@ -70,7 +97,6 @@ def _initialize_grating(config: Config) -> tuple[Array, Array, Array, Array]:
     return delta_k1, delta_k2, kappa_array, initial_widths
 
 
-# REFACTOR: The function signature is now clean and compact.
 def _run_optimization(
     initial_widths: Array,
     sim_params: SimulationParameters,
@@ -78,7 +104,8 @@ def _run_optimization(
 ) -> Array:
     """Sets up and runs the L-BFGS optimization."""
     print("2. Setting up loss function and L-BFGS optimizer...")
-    loss_fn = make_loss_fn(sim_params)
+    regularization_fn = REGULARIZATION_FNS.get(config.regularization) if config.regularization else None
+    loss_fn = make_loss_fn(sim_params, config, regularization_fn, config.lambda_val)
     solver = optax.lbfgs()
 
     @jit
@@ -134,7 +161,6 @@ def _plot_domain_widths(initial_widths: Array, optimized_widths: Array) -> None:
     fig.show()
 
 
-# REFACTOR: This function signature is also much cleaner now.
 def _plot_shw_power_spectrum(
     initial_widths: Array,
     optimized_widths: Array,
@@ -171,8 +197,7 @@ def main() -> None:
     # 1. Generate initial physical parameters and domain widths
     delta_k1, delta_k2, kappa_array, initial_widths = _initialize_grating(config)
 
-    # REFACTOR: Bundle the fixed simulation parameters into a single object.
-    # This clarifies the data flow of the entire script.
+    # 2. Create simulation parameters
     sim_params = SimulationParameters(
         delta_k1=delta_k1,
         delta_k2=delta_k2,
@@ -180,10 +205,10 @@ def main() -> None:
         b_initial=jnp.array([1.0, 0.0, 0.0], dtype=jnp.complex64),
     )
 
-    # 2. Run the optimization with the clean parameter objects
+    # 3. Run the optimization with the clean parameter objects
     optimized_widths = _run_optimization(initial_widths, sim_params, config)
 
-    # 3. Visualize the results
+    # 4. Visualize the results
     print("4. Visualizing optimization results...")
     _plot_domain_widths(initial_widths, optimized_widths)
     _plot_shw_power_spectrum(initial_widths, optimized_widths, sim_params, config)

@@ -239,5 +239,4 @@ def main() -> None:
     _plot_thw_power_spectrum(initial_widths, optimized_widths, sim_params, config)
 
 
-if __name__ == "__main__":
-    main()
+main()
