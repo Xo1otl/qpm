@@ -52,31 +52,27 @@ def propagate_domain(b_in: jax.Array, h: float, kappa_val: float, lin: jax.Array
 
 
 def simulate_twm(
-    superlattice: jax.Array,
+    domain_widths: jax.Array,
+    kappa_vals: jax.Array,
     delta_k1: jax.Array,
     delta_k2: jax.Array,
     b_initial: jax.Array,
 ) -> jax.Array:
     """指定された単一の波長、温度、格子で伝播を計算する。"""
-    domain_label, field_names = SUPERLATTICE_SPEC
-    if superlattice.ndim != len(SUPERLATTICE_SPEC) or superlattice.shape[-1] != len(field_names):
-        msg = (
-            f"スーパーラティス構造を定義する配列の形状は (N, {len(field_names)}) で、"
-            f"Nが{domain_label}の数、各行が {list(field_names)} でなければなりません。"
-        )
-        raise ValueError(
-            msg,
-        )
+    if domain_widths.ndim != 1 or kappa_vals.ndim != 1 or domain_widths.shape != kappa_vals.shape:
+        msg = "domain_widths and kappa_vals must be 1D arrays of the same shape."
+        raise ValueError(msg)
     if b_initial.shape != (3,) or b_initial.dtype != jnp.complex64:
         msg = "b_initial must be a 1D array of shape (3,) and dtype jnp.complex64"
         raise ValueError(msg)
 
     lin = get_lin(delta_k1, delta_k2)
 
-    def propagator_step(b_carry: jax.Array, domain: jax.Array) -> tuple[jax.Array, None]:
-        h, kappa_val = domain
-        return propagate_domain(b_carry, h, kappa_val, lin), None
+    def propagator_step(b_carry: jax.Array, domain_params: tuple[jax.Array, jax.Array]) -> tuple[jax.Array, None]:
+        h, kappa_val = domain_params
+        b_next = propagate_domain(b_carry, h, kappa_val, lin)
+        return b_next, None
 
-    b_final, _ = lax.scan(propagator_step, b_initial, superlattice)
+    b_final, _ = lax.scan(propagator_step, b_initial, (domain_widths, kappa_vals))
 
     return b_final

@@ -1,100 +1,124 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
 
-# --- 型定義 ---
-Grating = jax.Array  # shape: (num_domains, 2) -> [width, kappa]
+# --- Type Definitions ---
 DomainIndexes = jax.Array  # shape: (num_domains,) -> [0, 1, ..., N-1]
 WidthFn = Callable[[DomainIndexes], jax.Array]
 KappaFn = Callable[[DomainIndexes], jax.Array]
 
 
-# --- データ構造とファクトリ関数 ---
+class Grating(NamedTuple):
+    """
+    A data structure containing the physical properties of a grating.
+    This is the primary output of the build process.
+
+    Attributes:
+        widths: 1D array of domain widths.
+        kappas: 1D array of corresponding kappa values.
+    """
+
+    widths: jax.Array
+    kappas: jax.Array
+
+
+# --- Profile Definition (Declarative Blueprint) ---
 @dataclass(frozen=True)
 class Profile:
-    """単一グレーティングセグメントの宣言的な数学的設計図 (データコンテナ)"""
+    """A declarative mathematical blueprint for a single grating segment."""
 
     num_domains: int
     width_fn: WidthFn
     kappa_fn: KappaFn
 
 
+# --- Profile Factory Functions ---
 def uniform_profile(num_domains: int, period: float, kappa_mag: float, start_sign: float = 1.0) -> Profile:
     """
-    一様な周期を持つグレーティングのProfileを生成する。
-    最も一般的な交互反転の振る舞いをデフォルトで提供する。
+    Creates a Profile for a grating with a uniform period.
+    Provides the most common alternating-sign behavior by default.
 
     Args:
-        num_domains: ドメイン数。
-        period: グレーティング周期。
-        kappa: 結合係数の大きさ。
-        start_sign: 最初のドメインのkappaの符号 (+1.0 または -1.0)。
+        num_domains: The number of domains in the segment.
+        period: The grating period (width of two adjacent domains).
+        kappa_mag: The magnitude of the coupling coefficient.
+        start_sign: The sign of kappa for the first domain (+1.0 or -1.0).
     """
     domain_width = period / 2.0
 
     def kappa_fn(i: DomainIndexes) -> jax.Array:
+        # Alternating signs for kappa
         signs = jnp.power(-1.0, i)
         return jnp.sign(start_sign) * jnp.full_like(i, kappa_mag, dtype=jnp.float32) * signs
 
     return Profile(
-        num_domains,
-        lambda i: jnp.full_like(i, domain_width, dtype=jnp.float32),
-        kappa_fn,
+        num_domains=num_domains,
+        width_fn=lambda i: jnp.full_like(i, domain_width, dtype=jnp.float32),
+        kappa_fn=kappa_fn,
     )
 
 
 def tapered_profile(num_domains: int, start_width: float, chirp_rate: float, kappa_mag: float, start_sign: float = 1.0) -> Profile:
     """
-    テーパー状グレーティングのProfileを生成する。
-    最も一般的な交互反転の振る舞いをデフォルトで提供する。
+    Creates a Profile for a tapered (chirped) grating.
+    Provides the most common alternating-sign behavior by default.
 
     Args:
-        num_domains: ドメイン数。
-        start_width: 開始ドメイン幅。
-        chirp_rate: チャープ率。
-        kappa: 結合係数の大きさ。
-        start_sign: 最初のドメインのkappaの符号 (+1.0 または -1.0)。
+        num_domains: The number of domains in the segment.
+        start_width: The width of the initial domain.
+        chirp_rate: The rate at which the domain width changes.
+        kappa_mag: The magnitude of the coupling coefficient.
+        start_sign: The sign of kappa for the first domain (+1.0 or -1.0).
     """
 
     def width_fn(i: DomainIndexes) -> jax.Array:
         return start_width / jnp.sqrt(1 + 2 * chirp_rate * start_width * i)
 
     def kappa_fn(i: DomainIndexes) -> jax.Array:
+        # Alternating signs for kappa
         signs = jnp.power(-1.0, i)
         return jnp.sign(start_sign) * jnp.full_like(i, kappa_mag, dtype=jnp.float32) * signs
 
-    return Profile(num_domains, width_fn, kappa_fn)
+    return Profile(num_domains=num_domains, width_fn=width_fn, kappa_fn=kappa_fn)
 
 
-# --- グレーティングを構築する関数 ---
-def _realize(profile: Profile) -> Grating:
-    """【内部関数】単一のProfileを具体的なJAX配列に変換する"""
+# --- Grating Construction ---
+def _build_from_profile(profile: Profile) -> Grating:
+    """[Internal] Realizes a single Profile into a concrete Grating structure."""
     if profile.num_domains == 0:
-        return jnp.zeros((0, 2), dtype=jnp.float32)
+        empty_arr = jnp.array([], dtype=jnp.float32)
+        return Grating(widths=empty_arr, kappas=empty_arr)
 
     indices = jnp.arange(profile.num_domains, dtype=jnp.float32)
     widths = profile.width_fn(indices)
     kappas = profile.kappa_fn(indices)
-    return jnp.stack([widths, kappas], axis=1)
+    return Grating(widths=widths, kappas=kappas)
 
 
 def build(profiles: Profile | list[Profile]) -> Grating:
     """
-    単一または複数のProfileからグレーティングを構築する。
-    連結時の符号の連続性は、ユーザーが kappa_fn を定義することで保証する必要がある。
+    Builds a complete Grating from one or more Profile blueprints.
+    If multiple profiles are provided, they are concatenated in order.
     """
     if not isinstance(profiles, list):
         profiles = [profiles]
 
     if not profiles:
-        return jnp.zeros((0, 2), dtype=jnp.float32)
+        empty_arr = jnp.array([], dtype=jnp.float32)
+        return Grating(widths=empty_arr, kappas=empty_arr)
 
-    # 符号管理ロジックが不要になり、単純な連結処理になる
-    segments = [_realize(p) for p in profiles if p.num_domains > 0]
+    # Realize each profile into a concrete Grating segment
+    segments = [_build_from_profile(p) for p in profiles if p.num_domains > 0]
 
     if not segments:
-        return jnp.zeros((0, 2), dtype=jnp.float32)
+        empty_arr = jnp.array([], dtype=jnp.float32)
+        return Grating(widths=empty_arr, kappas=empty_arr)
 
-    return jnp.concatenate(segments, axis=0)
+    # Concatenate the widths and kappas from all segments
+    all_widths = jnp.concatenate([s.widths for s in segments])
+    all_kappas = jnp.concatenate([s.kappas for s in segments])
+
+    return Grating(widths=all_widths, kappas=all_kappas)
