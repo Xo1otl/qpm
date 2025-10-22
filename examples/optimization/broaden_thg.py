@@ -3,8 +3,8 @@ from dataclasses import dataclass
 
 import jax
 import jax.numpy as jnp
-import optax  # pyright: ignore[reportMissingTypeStubs]
-import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
+import optax
+import plotly.graph_objects as go
 from jax import Array, jit
 from jax_tqdm.loop_pbar import loop_tqdm
 
