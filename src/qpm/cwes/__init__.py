@@ -1,6 +1,5 @@
-from ._solver import BatchTwmResult, simulate_twm
+from ._solver import simulate_twm
 
 __all__ = [
-    "BatchTwmResult",
     "simulate_twm",
 ]

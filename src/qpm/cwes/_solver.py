@@ -2,10 +2,6 @@ import jax
 import jax.numpy as jnp
 from jax import jit, lax
 
-# The result of a batch TWM simulation.
-# Shape: (num_sweep_points, 3)
-type BatchTwmResult = jax.Array
-
 OMEGA_SMALL_EPS: float = 1e-9
 SUPERLATTICE_SPEC: tuple[str, tuple[str, str]] = ("domain", ("h", "kappa"))
 
