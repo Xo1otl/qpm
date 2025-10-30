@@ -29,7 +29,7 @@ def propagate_domain(b_in: jax.Array, h: jax.Array, kappa_val: jax.Array, lin: j
     b1n, b2n, b3n = b_in
     lin1, lin2, lin3 = lin
 
-    # exp(L*h) の計算を一度だけ行い、結果を再利用する
+    # reuse calculation of exp(L*h)
     exp_linh = jnp.exp(lin * h)
     exp_lin1h, exp_lin2h, exp_lin3h = exp_linh
 
@@ -93,5 +93,6 @@ def simulate_twm_with_trace(
         return b_next, b_next
 
     b_final, b_trace = lax.scan(propagator_step, b_initial, (domain_widths, kappa_vals))
+    full_trace = jnp.vstack([b_initial, b_trace])
 
-    return b_final, b_trace
+    return b_final, full_trace

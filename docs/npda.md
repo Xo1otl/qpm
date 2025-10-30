@@ -1,15 +1,26 @@
-$$A_1 \gg A2 \land A_2 \gg A_3$$
+### **Coupled-Wave Equations**
 
-の時 
+Third-Harmonic Generation (THG) through a cascaded second-order nonlinear process (SHG+SFG) is described by the following system of coupled-wave equations.
 
 $$
-A_3(L) \propto A_1^3 \int_0^L \left( \kappa(z) e^{-i\Delta k_2 z} \left[ \int_0^z \kappa(z') e^{-i\Delta k_1 z'} dz' \right] \right) dz
-$$ 
+\begin{align}
+\frac{d A_1}{dz} &= i \kappa(z) \left[ A_2 A_1^* e^{i\Delta k_1 z} + A_3 A_2^* e^{i\Delta k_2 z} \right] \tag{1} \\
+\frac{d A_2}{dz} &= i \, 2\kappa(z) \left[ \frac{1}{2} A_1^2 e^{-i\Delta k_1 z} + A_3 A_1^* e^{i\Delta k_2 z} \right] \tag {2} \\
+\frac{d A_3}{dz} &= i \, 3\kappa(z) \left[ A_1 A_2 e^{-i\Delta k_2 z} \right] \tag{3}
+\end{align}
+$$
 
-でありこれはフーリエ変換を用いて一瞬で計算できる
+Where $A_j(z)$ is the complex amplitude of each wave, $\kappa(z)$ is the coupling coefficient, and $\Delta k_j$ represents the phase mismatch.
 
-線形演算子なので $\kappa(z)$ の区分符号反転を考えた時差分更新だけで再計算でき、イジングモデルの制約内で超高速に構造探索ができる
+# Under Approximation
+Under the undepleted pump approximation ($A_1(z) \approx A_1$) and assuming low conversion efficiency to the third harmonic ($|A_1| \gg |A_3(z)|$) the system of equations simplifies significantly by defining a two-dimensional "cascaded susceptibility function", $S(\Delta k_1, \Delta k_2)$:
 
-$\kappa$一定のドメインの伝播のプロパゲータが線形なので、符号反転しても差分だけ補正したらよい
+$$
+S(\Delta k_1, \Delta k_2) = \int_0^L dz_2 \int_0^{z_2} dz_1 \, \kappa(z_1) \kappa(z_2) e^{-i(\Delta k_1 z_1 + \Delta k_2 z_2)}
+$$
 
-プロパゲータはパラメータに波長を含む、
+The final third-harmonic amplitude is then directly proportional to this function.
+
+$$
+A_3(L) = -3 A_1^3 \, S(\Delta k_1, \Delta k_2)
+$$
