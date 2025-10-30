@@ -1,19 +1,17 @@
 import jax
 import jax.numpy as jnp
-from jax import jit, lax
+from jax import lax
 
 OMEGA_SMALL_EPS: float = 1e-9
 SUPERLATTICE_SPEC: tuple[str, tuple[str, str]] = ("domain", ("h", "kappa"))
 
 
-@jit
 def get_lin(delta_k1: jax.Array, delta_k2: jax.Array) -> jax.Array:
     """線形演算子Lを生成"""
     return jnp.array([0.0, delta_k1 * 1j, (delta_k1 + delta_k2) * 1j], dtype=jnp.complex64)
 
 
-@jit
-def phi(omega: jax.Array, h: float) -> jax.Array:
+def phi(omega: jax.Array, h: jax.Array) -> jax.Array:
     """
     ETD予測子で使用される積分関数 Φ(Ω, h) = (e^(Ωh) - 1) / Ω を計算する。
     JAXのjitに対応するため、jnp.whereで条件分岐を処理する。
@@ -24,8 +22,7 @@ def phi(omega: jax.Array, h: float) -> jax.Array:
     return jnp.where(is_small, val_small, val_large)
 
 
-@jit
-def propagate_domain(b_in: jax.Array, h: float, kappa_val: float, lin: jax.Array) -> jax.Array:
+def propagate_domain(b_in: jax.Array, h: jax.Array, kappa_val: jax.Array, lin: jax.Array) -> jax.Array:
     """
     ETD スキームの1ステップを計算する。
     """
@@ -58,8 +55,8 @@ def simulate_twm(
     if domain_widths.ndim != 1 or kappa_vals.ndim != 1 or domain_widths.shape != kappa_vals.shape:
         msg = "domain_widths and kappa_vals must be 1D arrays of the same shape."
         raise ValueError(msg)
-    if b_initial.shape != (3,) or b_initial.dtype != jnp.complex64:
-        msg = "b_initial must be a 1D array of shape (3,) and dtype jnp.complex64"
+    if b_initial.shape != (3,) or (b_initial.dtype not in (jnp.complex64, jnp.complex128)):
+        msg = "b_initial must be a 1D array of shape (3,) and dtype jnp.complex64 or jnp.complex128."
         raise ValueError(msg)
 
     lin = get_lin(delta_k1, delta_k2)
@@ -72,3 +69,29 @@ def simulate_twm(
     b_final, _ = lax.scan(propagator_step, b_initial, (domain_widths, kappa_vals))
 
     return b_final
+
+
+def simulate_twm_with_trace(
+    domain_widths: jax.Array,
+    kappa_vals: jax.Array,
+    delta_k1: jax.Array,
+    delta_k2: jax.Array,
+    b_initial: jax.Array,
+) -> tuple[jax.Array, jax.Array]:
+    if domain_widths.ndim != 1 or kappa_vals.ndim != 1 or domain_widths.shape != kappa_vals.shape:
+        msg = "domain_widths and kappa_vals must be 1D arrays of the same shape."
+        raise ValueError(msg)
+    if b_initial.shape != (3,) or (b_initial.dtype not in (jnp.complex64, jnp.complex128)):
+        msg = "b_initial must be a 1D array of shape (3,) and dtype jnp.complex64 or jnp.complex128."
+        raise ValueError(msg)
+
+    lin = get_lin(delta_k1, delta_k2)
+
+    def propagator_step(b_carry: jax.Array, domain_params: tuple[jax.Array, jax.Array]) -> tuple[jax.Array, jax.Array]:
+        h, kappa_val = domain_params
+        b_next = propagate_domain(b_carry, h, kappa_val, lin)
+        return b_next, b_next
+
+    b_final, b_trace = lax.scan(propagator_step, b_initial, (domain_widths, kappa_vals))
+
+    return b_final, b_trace

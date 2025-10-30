@@ -45,3 +45,19 @@ The simulation is implemented in JAX, making the CWEs solver differentiable. Thi
 # Inverse Design via Optimization
 
 The differentiable solver enables inverse design of photonic structures through gradient-based optimization. By defining a loss function, an optimizer iteratively adjusts the physical parameters of the structure. The gradients from the solver guide the optimization process to find a design that minimizes the loss function.
+
+# Optimization Result
+
+This differentiable solver was applied to optimize a QPM structure for maximizing Third-Harmonic Generation (THG) efficiency under the following conditions:
+
+*   **Number of Domains:** 1000
+*   **Design Wavelength:** 1.031 µm
+*   **Design Temperature:** 70.0 °C
+*   **Nonlinear Coefficient Magnitude (κ_mag):** 1.31e-5 / (2 / π)
+*   **Initial Field Amplitudes:** [1.0, 0.0, 0.0] (Fundamental wave amplitude of 1.0, zero for second and third harmonics)
+
+A comparison was made between two types of QPM structures:
+1.  **Periodic Structure:** A conventional design composed of concatenated Second-Harmonic Generation (SHG) and Sum-Frequency Generation (SFG) sections. The optimal ratio of SHG to SFG domains was determined through an exhaustive search to maximize efficiency.
+2.  **Aperiodic Structure:** A novel design where each of the 1000 domain widths was individually optimized using the differentiable solver.
+
+The optimization successfully discovered an aperiodic structure that achieves approximately **twice the conversion efficiency** of the *best performing periodic structure* for a comparable device length. This result highlights the effectiveness of using this differentiable solver for the inverse design of novel, high-performance photonic devices.
