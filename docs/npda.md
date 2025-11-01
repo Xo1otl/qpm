@@ -13,10 +13,10 @@ $$
 Where $A_j(z)$ is the complex amplitude of each wave, $\kappa(z)$ is the coupling coefficient, and $\Delta k_j$ represents the phase mismatch.
 
 ## Under Approximation
-Under the undepleted pump approximation ($A_1(z) \approx A_1$) and assuming low conversion efficiency to the third harmonic ($|A_1| \gg |A_3(z)|$) the system of equations simplifies significantly by defining a two-dimensional "cascaded susceptibility function", $S(\Delta k_1, \Delta k_2)$:
+Under the undepleted pump approximation ($A_1(z) \approx A_1$) and assuming low conversion efficiency to the third harmonic ($|A_1| \gg |A_3(z)|$), the system's behavior is captured by a **Second-Order Term of a Dyson Series**, $S$. This functional takes the coupling profile $\kappa(z)$ as input and yields a value dependent on the phase mismatches $\Delta k_1$ and $\Delta k_2$:
 
 $$
-S(\Delta k_1, \Delta k_2) = \int_0^L dz_2 \int_0^{z_2} dz_1 \, \kappa(z_1) \kappa(z_2) e^{-i(\Delta k_1 z_1 + \Delta k_2 z_2)}
+S[\kappa](\Delta k_1, \Delta k_2) = \int_0^L dz_2 \int_0^{z_2} dz_1 \, \kappa(z_1) \kappa(z_2) e^{-i(\Delta k_1 z_1 + \Delta k_2 z_2)}
 $$
 
 The final third-harmonic amplitude is then directly proportional to this function.
@@ -47,9 +47,9 @@ Write $J_n(\Delta k_1,\Delta k_2)=J([z_{n-1},z_n];\Delta k_1,\Delta k_2)$.
 
 ## Discretized $S$ and $O(N)$ evaluation
 
-Split the double integral by domains:
+For a piecewise-constant coupling profile $\kappa(z)$, the functional can be evaluated by splitting the integral over the domains:
 $$
-S(\Delta k_1,\Delta k_2)
+S[\kappa](\Delta k_1,\Delta k_2)
 =\sum_{n=1}^{N}\sum_{m=1}^{n-1}\kappa_m\kappa_n R_m(\Delta k_1)R_n(\Delta k_2)
 +\sum_{n=1}^{N}\kappa_n^2 J_n(\Delta k_1,\Delta k_2).
 \tag{*}
