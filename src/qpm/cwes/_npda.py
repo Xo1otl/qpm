@@ -1,153 +1,102 @@
-# TODO: Implement the code to calculate the SHG and THG spectrum under the NPDA in a single step using a Fourier transform.
-# TODO: THG efficiency requires a double Fourier transform.
-# TODO: The function names should be ft_shg_spectrum and ft_thg_spectrum.
-# TODO: Rename calculate_phys_eff_spectrum to calc_phys_spectrum.
-# TODO" The squaring operation should be moved to the caller, as there might be cases where the complex amplitude is needed.
-'''
-from dataclasses import dataclass
-from functools import partial
-
+import jax
 import jax.numpy as jnp
-import plotly.graph_objects as go
-
-from qpm import grating, mgoslt
 
 
-@dataclass(frozen=True)
-class DeviceConfig:
-    length: float
-    num_domains: int
-    kappa: float
-
-
-@dataclass(frozen=True)
-class FourierConfig:
-    k_center: float
-    k_bandwidth: float
-    num_points: int
-
-
-def new_fourier_config(
-    dk_eff: jax.Array,
-    device: DeviceConfig,
-    num_points: int,
-    bw_scale: float = 1.2,
-) -> "FourierConfig":
-    k_norm_center = device.num_domains / 2.0
-    dk_eff_range = jnp.max(dk_eff) - jnp.min(dk_eff)
-    k_norm_bw = dk_eff_range * device.length / (2 * jnp.pi) * bw_scale
-    return FourierConfig(
-        k_center=k_norm_center,
-        k_bandwidth=float(k_norm_bw),
-        num_points=num_points,
-    )
-
-
-@partial(jax.jit, static_argnames=("m", "fft_len"))
-def czt(x: jax.Array, m: int, fft_len: int, w: jax.Array, a: jax.Array) -> jax.Array:
-    """Computes the Chirp Z-Transform of a signal."""
-    n = x.shape[-1]
-    n_range = jnp.arange(n)
-    y = x * (a**-n_range) * w ** (n_range**2 / 2)
-    k_range_full = jnp.arange(-(n - 1), m)
-    h = w ** (-(k_range_full**2) / 2)
-    y_fft = jnp.fft.fft(y, n=fft_len)
-    h_fft = jnp.fft.fft(h, n=fft_len)
-    conv_result = jnp.fft.ifft(y_fft * h_fft)
-    k_range_out = jnp.arange(m)
-    final_chirp = w ** (k_range_out**2 / 2)
-    return conv_result[n - 1 : n - 1 + m] * final_chirp
-
-
-def create_alternating_signal_from_widths(widths: jax.Array, n_points: int = 8192) -> jax.Array:
+# --- Helper Functions for Analytical Calculation ---
+def _r(a: jax.Array, b: jax.Array, k: jax.Array) -> jax.Array:
     """
-    Generates an alternating +1/-1 signal based on an array of domain widths.
+    Calculates R([a,b]; k) = ∫[a,b] exp(-ikz) dz
+    Uses the numerically stable sinc formulation from the theory,
+    which is inherently grad-safe and handles k=0.
+
+    R = exp(-ik(a+b)/2) * l * sinc(kl/2)
     """
-    num_domains = widths.shape[0]
-    alternating_values = jnp.power(-1, jnp.arange(num_domains))
-    cumulative_widths = jnp.cumsum(widths)
-    total_width = cumulative_widths[-1]
-    boundary_points = jnp.round(cumulative_widths / total_width * n_points).astype(jnp.int32)
-    boundary_points = jnp.insert(boundary_points, 0, 0)
-    boundary_points = boundary_points.at[-1].set(n_points)
-    points_per_domain = jnp.diff(boundary_points)
-    return jnp.repeat(alternating_values, points_per_domain)
+    ell = b - a
+    center = (a + b) / 2.0
+
+    # jnp.sinc(x) = sin(pi*x)/(pi*x)
+    # We need unnormalized sinc(y) where y = k*ell/2.
+    # We set x = y/pi = k*ell/(2*pi)
+    sinc_arg = k * ell / (2.0 * jnp.pi)
+
+    # jnp.sinc handles the k=0 case (where sinc_arg=0) automatically
+    sinc_val = jnp.sinc(sinc_arg)
+
+    return jnp.exp(-1j * k * center) * ell * sinc_val
 
 
-def calculate_fourier_spectrum(
-    signal: jax.Array,
-    config: FourierConfig,
-) -> tuple[jax.Array, jax.Array]:
-    """Calculates the spectrum of a signal using CZT for a specified frequency window."""
-    fs = signal.shape[0]
-    k_start = config.k_center - config.k_bandwidth / 2.0
-    k_end = config.k_center + config.k_bandwidth / 2.0
-    f_norm_start = k_start / fs
-    f_norm_end = k_end / fs
-    w = jnp.exp(-1j * 2 * jnp.pi * (f_norm_end - f_norm_start) / config.num_points)
-    a = jnp.exp(1j * 2 * jnp.pi * f_norm_start)
-    required_len = fs + config.num_points - 1
-    fft_len = 1 << (required_len - 1).bit_length()
-    spectrum_raw = czt(signal, m=config.num_points, fft_len=fft_len, w=w, a=a)
-    spectrum_amp_normalized = jnp.abs(spectrum_raw * 2 * jnp.pi / fs)
-    k_axis_normalized = jnp.linspace(k_start, k_end, config.num_points)
-    return k_axis_normalized, spectrum_amp_normalized
+def _j(a: jax.Array, b: jax.Array, dk1: jax.Array, dk2: jax.Array) -> jax.Array:
+    """
+    Calculates J([a,b]; dk1, dk2)
+    Handles singularities at dk1=0 and/or dk2=0 in a grad-safe way.
+    """
+    ell = b - a
+
+    # --- Create safe denominators for all *external* divisions ---
+    # These prevent NaN propagation during gradient calculations.
+    dk1_safe = jnp.where(dk1 == 0.0, 1.0, dk1)
+    dk2_safe = jnp.where(dk2 == 0.0, 1.0, dk2)
+
+    # Note: _r calls are now inherently safe due to the sinc formulation.
+    r_dk2 = _r(a, b, dk2)
+    r_dk1_dk2 = _r(a, b, dk1 + dk2)
+
+    # --- General case: dk1 != 0 ---
+    # Division by dk1_safe is now safe.
+    j_general = (jnp.exp(-1j * dk1 * a) * r_dk2 - r_dk1_dk2) / (1j * dk1_safe)
+
+    # --- Handle cases where dk1 = 0 ---
+
+    # Subcase: dk1 = 0, dk2 = 0
+    # J([a,b]; 0, 0) = ℓ²/2
+    j_dk1_zero_dk2_zero = ell**2 / 2.0
+
+    # Subcase: dk1 = 0, dk2 != 0
+    # J([a,b]; 0, dk2) = ∫[a,b] (z-a)exp(-i*dk2*z) dz
+    # Solved via integration by parts, using safe denominators.
+    term1 = 1j * ell * jnp.exp(-1j * dk2 * b) / dk2_safe
+    term2 = (jnp.exp(-1j * dk2 * b) - jnp.exp(-1j * dk2 * a)) / (dk2_safe**2)
+    j_dk1_zero_dk2_nonzero = term1 + term2
+
+    # Combine dk1=0 subcases
+    j_dk1_zero = jnp.where(dk2 == 0, j_dk1_zero_dk2_zero, j_dk1_zero_dk2_nonzero)
+
+    # Final selection based on dk1
+    return jnp.where(dk1 == 0, j_dk1_zero, j_general)
 
 
-@dataclass(frozen=True)
-class ConvParams:
-    norm_k_axis: jax.Array
-    k_center: float
-    length: float
-    kappa: float
-    dk_eff: jax.Array
+# --- JIT-Compiled Analytical Calculation ---
+@jax.jit
+def calc_s_analytical(kappas: jax.Array, widths: jax.Array, dk1: jax.Array, dk2: jax.Array) -> jax.Array:
+    """
+    Calculates the S-functional analytically using the O(N) discretized formula.
+    This version is JIT-compiled and gradient-safe.
+    """
+    # Calculate domain boundaries [z_{n-1}, z_n] for each segment
+    z_end = jnp.cumsum(widths)
+    z_start = jnp.pad(z_end[:-1], (1, 0))
 
+    # --- Calculate terms from Equation (*) ---
 
-def calculate_phys_eff_spectrum(norm_spectrum_amp: jax.Array, params: ConvParams) -> jax.Array:
-    """Converts the normalized Fourier spectrum to physical units."""
-    k_deviation_norm = params.norm_k_axis - params.k_center
-    dk_total_phys = k_deviation_norm * (2 * jnp.pi / params.length)
-    # Convert the normalized Fourier transform (|F_norm|) to the physical one (|F_phys|)
-    # |F_phys| = (L / 2π) * |F_norm|
-    fourier_amp_phys = norm_spectrum_amp * (params.length / (2 * jnp.pi))
-    # Efficiency is proportional to |κ_d * F_phys(Δk)|^2
-    eff = (params.kappa**2) * (fourier_amp_phys**2)
-    return jnp.interp(params.dk_eff, dk_total_phys, eff)
+    # 1. Diagonal sum part: Σ_{n=1}^{N} κ_n² J_n(dk1, dk2)
+    j_n = _j(z_start, z_end, dk1, dk2)
+    diagonal_sum = jnp.sum(kappas**2 * j_n)
 
+    # 2. Off-diagonal double sum part: Σ_{n=1}^{N} Σ_{m=1}^{n-1} ...
+    # Implemented in O(N) using the cumulative sum trick.
 
-def plot_spectrum(wls: jax.Array, effs: jax.Array) -> None:
-    """Plots the SHG efficiency spectrum using Plotly."""
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=wls, y=effs, mode="lines", name="Fourier Method"))
-    fig.update_layout(
-        title="SHG Spectrum (Fourier Method)",
-        xaxis_title="Fundamental Wavelength (μm)",
-        yaxis_title="Normalized SHG Efficiency",
-        template="plotly_white",
-    )
-    fig.show()
+    # s^(1)_n = κ_n R_n(Δk_1)
+    # s^(2)_n = κ_n R_n(Δk_2)
+    s1_n = kappas * _r(z_start, z_end, dk1)
+    s2_n = kappas * _r(z_start, z_end, dk2)
 
+    # Inner sum: C_n = Σ_{m=1}^{n} s^(1)_m
+    inner_sum_cumulative = jnp.cumsum(s1_n)
 
-def calc_dk_eff(dk_material: jax.Array, device: DeviceConfig) -> jax.Array:
-    """Calculates the effective phase mismatch."""
-    k_norm_center = device.num_domains / 2.0
-    k_g = k_norm_center * (2 * jnp.pi / device.length)
-    return dk_material - k_g
+    # Shift to get C_{n-1} = [0, s1_1, s1_1+s1_2, ...]
+    inner_sum_shifted = jnp.pad(inner_sum_cumulative, (1, 0))[:-1]
 
+    # Outer sum: Σ_{n=1}^{N} s^(2)_n * C_{n-1}
+    double_sum = jnp.sum(s2_n * inner_sum_shifted)
 
-def calc_shg_effs(widths: jax.Array, wls: jax.Array, device: DeviceConfig, design_temp: float) -> jax.Array:
-    dk_material = mgoslt.calc_twm_delta_k(wls, wls, design_temp)
-    dk_eff = calc_dk_eff(dk_material, device)
-    signal = create_alternating_signal_from_widths(widths, 30000)
-    fourier_config = new_fourier_config(dk_eff, device, wls.shape[0])
-
-    k_ax_norm, spec_amp_norm = calculate_fourier_spectrum(signal, fourier_config)
-    conv_params = ConvParams(
-        norm_k_axis=k_ax_norm,
-        k_center=fourier_config.k_center,
-        length=device.length,
-        kappa=device.kappa,
-        dk_eff=dk_eff,
-    )
-    return calculate_phys_eff_spectrum(spec_amp_norm, conv_params)
-'''
+    return double_sum + diagonal_sum

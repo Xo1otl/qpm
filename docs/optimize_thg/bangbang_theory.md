@@ -61,7 +61,7 @@ $$
 
 ## 3) Bang–bang optimality condition
 
-Because $J_\phi[\kappa]$ is **linear in $\kappa$ pointwise** and $\kappa(z)\in\{\pm\kappa_0\}$, the pointwise maximizer at each $z$ (for fixed $\phi$) is obtained by aligning $\kappa(z)$ with $w_\phi(z;\kappa)$:
+Because the first variation $\delta J_\phi$ is linear in the perturbation $\eta(z)$ and the control is constrained to $\kappa(z)\in\{\pm\kappa_0\}$, the maximizer at each $z$ (for fixed $\phi$) is obtained by aligning $\kappa(z)$ with $w_\phi(z;\kappa)$:
 $$
 \boxed{ \kappa_\phi^\star(z)=\kappa_0 \operatorname{sign} w_\phi(z;\kappa_\phi^\star) }
 \qquad\text{(bang–bang / maximum principle).}
