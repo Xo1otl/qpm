@@ -122,13 +122,3 @@ exactly the form you stated for the single-integral problem.
     with switch locations given by the zeros of $w_{\phi^*}$.
 *   When $\Delta k_1=\Delta k_2$, this collapses to the simple sinusoidal
     $\kappa^*(z)=\kappa_0\operatorname{sign}\big(\cos(\Delta k z+\phi^*)\big)$.
-
-# Task
-1.  **Initialize** $\kappa(z)$ (e.g., randomly).
-2.  **Calculate $S[\kappa]$**: Compute the functional $S$ using the current $\kappa$.
-3.  **Update $\phi$**: Set the phase $\phi = -\arg S[\kappa]$.
-4.  **Calculate $w(z)$**: Compute the switching function $w_{\phi}(z;\kappa)$ using the current $\kappa$ and the updated $\phi$.
-5.  **Update $\kappa$**: Determine the new control $\kappa_{\text{new}}(z) = \kappa_0 \operatorname{sign} w(z)$.
-6.  **Repeat steps 2-5** until $\kappa$ converges (i.e., $\kappa_{\text{new}} = \kappa$).
-
-Rigorously verify this iterative procedure aligns the theory.
