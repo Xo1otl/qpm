@@ -61,13 +61,3 @@ $$
 $$
 
 The inner sum is a cumulative sum. This structure allows the entire double summation to be calculated in a single pass, achieving $O(N)$ time complexity. Consequently, the total susceptibility $S$ can be computed efficiently.
-
-# Problem
-Let the SHG period be $\pi / \Delta k_1$ and the SFG period be $\pi / \Delta k_2$.
-We consider only a **tandem structure** where the first half has a constant SHG period and the second half has a constant SFG period.
-Prove that the efficiency is maximized when the ratio of the SHG period length to the Total Length is 1:2.
-
-# Key Concerns
-
-# Task
-Solve the problem
