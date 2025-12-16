@@ -1,177 +1,214 @@
+from dataclasses import dataclass
+
+import jax
 import jax.numpy as jnp
-from jax.scipy.special import erf
 import numpy as np
 import plotly.graph_objects as go
+from jax.scipy.special import erf
+
 from qpm import mgoslt
 
-# Constants and Parameters
-TEMP = 70.0  # Celsius
 
-# Initial State parameters
-D_PE = 0.045  # um^2/h
-t_PE = 8.0  # h
-# d_PE = 2 * sqrt(D_PE * t_PE)
-d_PE = 2 * jnp.sqrt(D_PE * t_PE)  # Expected 1.2 um
-W = 50.0  # um
+# --- Data Structures ---
+@dataclass
+class ProcessParams:
+    """Parameters for the waveguide fabrication process."""
 
-# Annealing parameters
-t_anneal = 100.0  # h
-D_x = 1.3  # um^2/h
-D_y = D_x / 1.5  # um^2/h
-
-# Refractive Index parameters
-DELTA_N0_MAP = {
-    # Approx wavelength (um) -> Delta n0
-    1.03: 0.012,
-    0.515: 0.017,  # Using 532nm value for SHG (~515nm)
-}
+    temp_c: float
+    d_pe_coeff: float  # Diffusivity for Proton Exchange (um^2/h)
+    t_pe_hours: float  # Time for Proton Exchange (h)
+    mask_width_um: float  # Width of the mask opening (um)
+    t_anneal_hours: float  # Annealing time (h)
+    d_x_coeff: float  # Annealing Diffusivity depth (um^2/h)
+    d_y_coeff: float  # Annealing Diffusivity width (um^2/h)
 
 
-def get_delta_n0(wl_um):
+@dataclass
+class SimulationGrid:
+    """Grid for simulation coordinates."""
+
+    x_depth: jax.Array
+    y_width: jax.Array
+
+
+@dataclass
+class RefractiveIndexResult:
+    """Result of refractive index calculation."""
+
+    n_profile: jax.Array
+    n_sub: float
+    wl_um: float
+    temp_c: float
+
+
+# --- Domain Logic ---
+def new_standard_process_params() -> ProcessParams:
+    """Initializes the standard process parameters based on experimental data."""
+    return ProcessParams(
+        temp_c=70.0,
+        d_pe_coeff=0.045,
+        t_pe_hours=8.0,
+        mask_width_um=50.0,
+        t_anneal_hours=100.0,
+        d_x_coeff=1.3,
+        d_y_coeff=1.3 / 1.5,
+    )
+
+
+def calculate_initial_depth(params: ProcessParams) -> jax.Array:
+    """Calculates the initial depth d_PE = 2 * sqrt(D_PE * t_PE)."""
+    return 2.0 * jnp.sqrt(params.d_pe_coeff * params.t_pe_hours)
+
+
+def get_delta_n0(wl_um: float) -> jax.Array:
     """
     Returns delta_n0 for a given wavelength.
-    Simple nearest neighbor lookup for the provided scalar values.
+    Uses nearest neighbor lookup:
+    - ~1.03 um -> 0.012
+    - ~0.515 um -> 0.017 (Using 532nm value for SHG)
     """
-    # Keys are 1.03 and 0.515.
-    # If wl is closer to 1.03, return 0.012
-    # If wl is closer to 0.515, return 0.017
-
     dist_fund = jnp.abs(wl_um - 1.031)
+    # Note: 0.5155 is the SHG wavelength of 1.031
     dist_sh = jnp.abs(wl_um - 0.5155)
 
-    # We can use jax.lax.cond or just python control flow if wl is a scalar float
-    # Assuming wl is a python float or scalar array
+    # Return 0.012 if closer to fundamental, else 0.017
     return jnp.where(dist_fund < dist_sh, 0.012, 0.017)
 
 
-def concentration_distribution(x, y, t_diff):
+def concentration_distribution(x: jax.Array, y: jax.Array, params: ProcessParams) -> jax.Array:
     """
-    Calculates the normalized concentration C(x,y)/C0 after diffusion time t_diff.
+    Calculates the normalized concentration C(x,y)/C0 after diffusion.
 
     Physics:
     - Initial profile: Rectangular block of width W (y) and depth d_PE (x).
     - Boundary Condition: Reflecting (Neumann) at x=0.
-    - Domain: Semi-infinite x >= 0, Infinite y.
-
-    Solution using product of 1D solutions (superposition/separation of variables):
-    C(x,y,t) = Cx(x,t) * Cy(y,t)
-
-    Cx(x,t): Source -d_PE to d_PE (due to image source).
-    Cx = 0.5 * [erf((d_PE - x)/2sqrt(Dt)) + erf((d_PE + x)/2sqrt(Dt))]
-
-    Cy(y,t): Source -W/2 to W/2.
-    Cy = 0.5 * [erf((W/2 - y)/2sqrt(Dt)) + erf((W/2 + y)/2sqrt(Dt))]
+    - Solution: Product of 1D error function solutions (Cx * Cy).
     """
+    d_pe = calculate_initial_depth(params)
+    width = params.mask_width_um
+    t_diff = params.t_anneal_hours
 
-    # Vertical Diffusion (x direction)
-    # diff_len_x = 2 * sqrt(D_x * t)
-    Lx = 2 * jnp.sqrt(D_x * t_diff)
-    Cx = 0.5 * (erf((d_PE - x) / Lx) + erf((d_PE + x) / Lx))
+    # Verticla Diffusion (x direction - depth)
+    lx = 2.0 * jnp.sqrt(params.d_x_coeff * t_diff)
+    # Boundary at x=0 is reflecting, so we simulate a source from -d_PE to d_PE
+    # C_x = 0.5 * [erf((d_PE - x)/Lx) + erf((d_PE + x)/Lx)]
+    # Note: The original code had (d_PE + x) which corresponds to the image source at -d_PE to 0
+    # ensuring dC/dx = 0 at x=0.
+    c_x = 0.5 * (erf((d_pe - x) / lx) + erf((d_pe + x) / lx))
 
-    # Horizontal Diffusion (y direction)
-    Ly = 2 * jnp.sqrt(D_y * t_diff)
-    Cy = 0.5 * (erf((W / 2 - y) / Ly) + erf((W / 2 + y) / Ly))
+    # Horizontal Diffusion (y direction - width)
+    ly = 2.0 * jnp.sqrt(params.d_y_coeff * t_diff)
+    # Source from -W/2 to W/2
+    c_y = 0.5 * (erf((width / 2.0 - y) / ly) + erf((width / 2.0 + y) / ly))
 
-    return Cx * Cy
+    return c_x * c_y
 
 
-def get_index_profile(x, y, wl, temp):
+def calculate_index_profile(grid: SimulationGrid, wl_um: float, params: ProcessParams) -> RefractiveIndexResult:
     """
-    Calculates the refractive index n(x,y) at a specific wavelength and temperature.
+    Calculates the refractive index n(x,y) at a specific wavelength.
     n(x,y) = n_sub(wl, T) + delta_n0(wl) * (C(x,y)/C0)
     """
-    n_sub = mgoslt.sellmeier_n_eff(wl, temp)
-    delta_n0 = get_delta_n0(wl)
-    C_norm = concentration_distribution(x, y, t_anneal)
-    return n_sub + delta_n0 * C_norm
+    # Substrate index
+    n_sub = mgoslt.sellmeier_n_eff(wl_um, params.temp_c)
+
+    # Max index change
+    delta_n0 = get_delta_n0(wl_um)
+
+    # Normalized concentration
+    # If grid.x_depth and grid.y_width are meshgrids, this works directly.
+    c_norm = concentration_distribution(grid.x_depth, grid.y_width, params)
+
+    n_profile = n_sub + delta_n0 * c_norm
+
+    return RefractiveIndexResult(n_profile=n_profile, n_sub=n_sub, wl_um=wl_um, temp_c=params.temp_c)
 
 
-def plot_index_profile(wl, temp, filename="index_profile.html"):
-    """
-    Generates a heatmap of the index profile using Plotly.
-    x-axis: Width (y parameter)
-    y-axis: Depth (x parameter)
-    """
-    # Define grid
-    # Depth x: 0 to 40 um
-    x_depth = jnp.linspace(0, 40, 200)
-    # Width y: -40 to 40 um
-    y_width = jnp.linspace(-40, 40, 200)
+# --- Visualization ---
+def create_index_heatmap(result: RefractiveIndexResult, x_coords: jax.Array, y_coords: jax.Array) -> go.Figure:
+    """Generates a heatmap of the index profile."""
+    # Convert JAX arrays to Numpy for Plotly
+    z_np = np.array(result.n_profile)
+    x_ax = np.array(y_coords)  # Width is typically x-axis in plots
+    y_ax = np.array(x_coords)  # Depth is typically y-axis in plots
 
-    # Create meshgrid
-    # We want Z[row, col] where row is depth, col is width
-    Y_width, X_depth = jnp.meshgrid(y_width, x_depth)
-
-    Z = get_index_profile(X_depth, Y_width, wl, temp)
-
-    # Convert to numpy for Plotly
-    Z_np = np.array(Z)
-    x_ax = np.array(y_width)
-    y_ax = np.array(x_depth)
-
-    fig = go.Figure(data=go.Heatmap(z=Z_np, x=x_ax, y=y_ax, colorscale="Viridis", colorbar=dict(title="Refractive Index"), reversescale=False))
+    fig = go.Figure(data=go.Heatmap(z=z_np, x=x_ax, y=y_ax, colorscale="Viridis", colorbar={"title": "Refractive Index"}, reversescale=False))
 
     fig.update_layout(
-        title=f"Refractive Index Distribution @ {wl} um, {temp}°C",
+        title=f"Refractive Index Distribution @ {result.wl_um} um, {result.temp_c}°C (n_sub={result.n_sub:.4f})",
         xaxis_title="Width (µm)",
         yaxis_title="Depth (µm)",
-        yaxis=dict(autorange="reversed"),  # Depth increases downwards
+        yaxis={"autorange": "reversed"},  # Depth increases downwards
         width=800,
         height=600,
     )
-
-    # fig.write_html(filename)
-    fig.show()
-    print(f"Plot saved to {filename}")
+    return fig
 
 
-def main():
-    print("--- QPM Index Construction ---")
+# --- Main Execution ---
+def main() -> None:
+    print("--- QPM Index Construction (Refactored) ---")
+
+    params = new_standard_process_params()
+
+    # Derived parameters for reporting
+    d_pe = calculate_initial_depth(params)
+
+    print("Parameters:")
+    print(f"  d_PE (calculated): {d_pe:.4f} um")
+    print(f"  W: {params.mask_width_um} um")
+    print(f"  t_anneal: {params.t_anneal_hours} h")
+    print(f"  D_x: {params.d_x_coeff} um^2/h")
+    print(f"  D_y: {params.d_y_coeff:.4f} um^2/h")
+    print(f"  Temp: {params.temp_c} C")
 
     # Wavelengths
     wl_fund = 1.031
     wl_sh = wl_fund / 2.0
 
-    print(f"Parameters:")
-    print(f"  d_PE: {d_PE:.4f} um")
-    print(f"  W: {W} um")
-    print(f"  t_anneal: {t_anneal} h")
-    print(f"  D_x: {D_x} um^2/h")
-    print(f"  D_y: {D_y:.4f} um^2/h")
-    print(f"  Temp: {TEMP} C")
-
     # Calculate Substrate Indices
-    n_sub_fund = mgoslt.sellmeier_n_eff(wl_fund, TEMP)
-    n_sub_sh = mgoslt.sellmeier_n_eff(wl_sh, TEMP)
+    n_sub_fund = mgoslt.sellmeier_n_eff(wl_fund, params.temp_c)
+    n_sub_sh = mgoslt.sellmeier_n_eff(wl_sh, params.temp_c)
 
-    print(f"\nSubstrate Indices:")
+    print("\nSubstrate Indices:")
     print(f"  n_sub(@{wl_fund}um): {n_sub_fund:.6f}")
     print(f"  n_sub(@{wl_sh:.4f}um): {n_sub_sh:.6f}")
 
-    # Verify Center Index (Max Index)
-    # Expected: n_sub + delta_n0 * 1 (approx, if t_anneal is small or source is large)
-    # Actually with t=100h, diffusion is significant.
-    # d_PE = 1.2 um. Lx = 2*sqrt(1.3*100) = 2*sqrt(130) ~ 22.8 um.
-    # d_PE / Lx ~ 0.05. erf(0.05) is small. So peak concentration will drop significantly.
+    # Check Peak Index at (0,0)
+    # We use scalar coordinates for spot checks
+    peak_fund_res = calculate_index_profile(SimulationGrid(x_depth=jnp.array(0.0), y_width=jnp.array(0.0)), wl_fund, params)
+    peak_sh_res = calculate_index_profile(SimulationGrid(x_depth=jnp.array(0.0), y_width=jnp.array(0.0)), wl_sh, params)
 
-    val_fund_0 = get_index_profile(0.0, 0.0, wl_fund, TEMP)
-    val_sh_0 = get_index_profile(0.0, 0.0, wl_sh, TEMP)
+    # We need to extract the scalar value from the 0-d array
+    val_fund_0 = peak_fund_res.n_profile
+    val_sh_0 = peak_sh_res.n_profile
 
-    print(f"\nPeak Index (x=0, y=0) after Annealing:")
+    print("\nPeak Index (x=0, y=0) after Annealing:")
     print(f"  n(@{wl_fund}um): {val_fund_0:.6f} (Delta: {val_fund_0 - n_sub_fund:.6f})")
     print(f"  n(@{wl_sh:.4f}um): {val_sh_0:.6f} (Delta: {val_sh_0 - n_sub_sh:.6f})")
 
-    # Sample grid point
+    # Sample Grid Point
     x_sample = 5.0
     y_sample = 0.0
-    val_fund_sample = get_index_profile(x_sample, y_sample, wl_fund, TEMP)
+    sample_res = calculate_index_profile(SimulationGrid(x_depth=jnp.array(x_sample), y_width=jnp.array(y_sample)), wl_fund, params)
     print(f"\nIndex at x={x_sample}, y={y_sample}:")
-    print(f"  n(@{wl_fund}um): {val_fund_sample:.6f}")
+    print(f"  n(@{wl_fund}um): {sample_res.n_profile:.6f}")
 
-    # Plotting
+    # Generate Plot
+    # Define grid
+    x_vec = jnp.linspace(0, 40, 200)
+    y_vec = jnp.linspace(-40, 40, 200)
+    y_grid, x_grid = jnp.meshgrid(y_vec, x_vec)
+
+    grid = SimulationGrid(x_depth=x_grid, y_width=y_grid)
+
+    result_fund = calculate_index_profile(grid, wl_fund, params)
+
     plot_filename = "index_distribution_fund.html"
     print(f"\nGenerating plot for Fundamental wave to {plot_filename}...")
-    plot_index_profile(wl_fund, TEMP, plot_filename)
+
+    fig = create_index_heatmap(result_fund, x_vec, y_vec)
+    fig.show()
 
 
 if __name__ == "__main__":

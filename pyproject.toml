@@ -5,7 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 authors = [{ name = "Xo1otl", email = "xolotl.mictl4n@gmail.com" }]
 requires-python = ">=3.13"
-dependencies = ["flax", "jax-tqdm>=0.4.0", "plotly"]
+dependencies = [
+    "flax",
+    "gplugins[femwell,meow,sax,schematic,tidy3d]>=1.3.8",
+    "jax-tqdm>=0.4.0",
+    "plotly",
+]
 
 [tool.ruff]
 line-length = 150
