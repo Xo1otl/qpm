@@ -14,6 +14,8 @@ Before solving the differential equation, the initial H$^+$ distribution (at $t=
 
 *   **Depth ($d_{PE}$)**: Calculated using the 1D diffusion coefficient derived from slab waveguide experiments.
     $$ d_{PE} = 2\sqrt{D_{PE} t_{PE}} $$
+    Using $D_{PE} = 0.045 \, \mu\text{m}^2/\text{h}$ (derived from SIMS data on p.107) and $t_{PE} = 8 \, \text{h}$:
+    $$ d_{PE} = 2\sqrt{0.045 \times 8} = 1.2 \, \mu\text{m} $$
 *   **Width ($W$)**: Defined by the photomask opening width (**$W = 50 \, \mu\text{m}$** is used in the simulation in Chapter 4).
 *   **Initial Profile $C(x,y)_{initial}$**:
     *   $C = C_0$ inside the rectangle defined by depth $d_{PE}$ and width $W$.
@@ -79,11 +81,13 @@ $$ \kappa_{\text{SFG}} = \frac{\omega_3\epsilon_0}{2} \iint [E_{3\omega}]^* d(x,
 | **初期形状** | 幅 $50 \mu m$ × 深さ $1.2 \mu m$ の矩形 | p.109, p.107(計算) |
 | **拡散時間 ($t_{anneal}$)** | $100$ h | p.109 |
 | **PE時間 ($t_{PE}$)** | $8$ h | p.109, p.110 |
+| **PE拡散係数 $D_{PE}$** | $0.045 \mu m^2/h$ | p.107 (SIMS) |
 | **拡散係数 $D_x$** | $1.3 \mu m^2/h$ | p.108 |
 | **拡散係数 $D_y$** | $1.3 / 1.5 \mu m^2/h$ | p.109 |
 | **$\Delta n_0$ (@1030nm)** | $0.012$ | p.109 |
 | **$\Delta n_0$ (@532nm)** | $0.017$ | p.111 |
-| **非線形定数 $d_{33}$** | $1.38 \mu m/V$ | p.100 |
+| **非線形定数 $d_{33}$** | $1.38e-5 \mu m/V$ | p.100 |
 
 ## TODO
 355nmに対する\Delta n_0の値がわからない (E_3の計算に必要)
+それか論文にkappa_SHGからkappa_SFG計算する手法使う
