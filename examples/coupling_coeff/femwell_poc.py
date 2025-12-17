@@ -12,8 +12,6 @@ from skfem.io import from_meshio
 
 @dataclass
 class SimulationConfig:
-    """Configuration parameters (Value Object)."""
-
     wavelength_um: float = 1.031
     width_min: float = -10.0
     width_max: float = 10.0
@@ -46,10 +44,6 @@ type ModeList = list[ModeResult]
 
 
 def new_simulation_context(cfg: SimulationConfig) -> SimulationContext:
-    """
-    Factory: centralized initialization logic.
-    Constructs the mesh, basis, and pre-calculates the material distribution.
-    """
     # 1. Define Geometry
     core_zone = box(-3, 1, 3, 5)
     domain = box(cfg.width_min, cfg.depth_min, cfg.width_max, cfg.depth_max)
