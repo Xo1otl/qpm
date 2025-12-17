@@ -50,3 +50,30 @@ $$ \kappa_{\text{SFG}} = \frac{\omega_3\epsilon_0}{2} \iint [E_{3\omega}]^* d(x,
 # TODO
 * 355nm $\Delta n_0$ unknown.
 * Alt: use $\kappa_{SHG} \to \kappa_{SFG}$ method.
+
+# Outputs
+## IndexConstruction
+```
+--- QPM Index Construction (Refactored) ---
+Parameters:
+  d_PE (calculated): 1.2000 um
+  W: 50.0 um
+  t_anneal: 100.0 h
+  D_x: 1.3 um^2/h
+  D_y: 0.8667 um^2/h
+  Temp: 70.0 C
+
+Substrate Indices:
+  n_sub(@1.031um): 2.132502
+  n_sub(@0.5155um): 2.204083
+
+Peak Index (x=0, y=0) after Annealing:
+  n(@1.031um): 2.133173 (Delta: 0.000671)
+  n(@0.5155um): 2.205033 (Delta: 0.000950)
+
+Index at x=5.0, y=0.0:
+  n(@1.031um): 2.133142
+```
+
+# Question
+Is this output reasonable for APE waveguide?
