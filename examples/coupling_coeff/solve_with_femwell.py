@@ -6,7 +6,7 @@ os.environ["JAX_PLATFORM_NAME"] = "cpu"
 import matplotlib.pyplot as plt
 import numpy as np
 
-from qpm import ape, wgmode
+from qpm import config, wgmode
 
 
 def verify_single_mode_condition(results: wgmode.ModeList) -> None:
@@ -71,17 +71,9 @@ def run() -> None:
     print("--- RUNNING WAVEGUIDE SIMULATION ---")
 
     # 1. Initialization
-    pp = ape.new_default_process_params()
-    pp.is_buried = True
-    cfg = wgmode.SimulationConfig()
-    cfg.process_params = pp
-
-    # Expand domain for buried waveguide to avoid truncation
-    # calculate_index.py uses +/- 50, so we use similar range
-    cfg.depth_min = -50.0
-    cfg.depth_max = 50.0
-    cfg.width_min = -50.0
-    cfg.width_max = 50.0
+    pp = config.new_process_params()
+    cfg = config.new_simulation_config(wavelength_um=1.031, process_params=pp)
+    cfg.plot_modes = True  # Enable plotting for this script
 
     # 2. Computation
     ctx, modes = wgmode.compute_modes_from_config(cfg)

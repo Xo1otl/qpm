@@ -6,7 +6,6 @@ from ._core import (
     calculate_initial_depth,
     concentration_distribution,
     get_delta_n0,
-    new_default_process_params,
 )
 
 __all__ = [
@@ -17,5 +16,4 @@ __all__ = [
     "calculate_initial_depth",
     "concentration_distribution",
     "get_delta_n0",
-    "new_default_process_params",
 ]

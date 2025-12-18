@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import plotly.graph_objects as go
 
-from qpm import ape, mgoslt
+from qpm import ape, config, mgoslt
 
 
 # --- Visualization ---
@@ -33,7 +33,8 @@ def create_index_heatmap(result: ape.RefractiveIndexResult, x_coords: jax.Array,
 def main() -> None:
     print("--- QPM Index Construction (Refactored) ---")
 
-    params = ape.new_default_process_params()
+    params = config.new_process_params()
+    params.is_buried = False  # Start with surface for the first plot
 
     # Derived parameters for reporting
     d_pe = ape.calculate_initial_depth(params)
@@ -95,7 +96,7 @@ def main() -> None:
 
     # --- Buried Calculation ---
     print("\n--- Buried Calculation ---")
-    params_buried = ape.new_default_process_params()
+    params_buried = config.new_process_params()
     params_buried.is_buried = True
 
     # Check Peak Index at (0,0) for Buried

@@ -39,20 +39,6 @@ class RefractiveIndexResult:
     temp_c: float
 
 
-def new_default_process_params() -> ProcessParams:
-    """Creates a standard set of process parameters."""
-    return ProcessParams(
-        temp_c=70.0,
-        d_pe_coeff=0.045,
-        t_pe_hours=8.0,
-        mask_width_um=50.0,
-        t_anneal_hours=100.0,
-        d_x_coeff=1.3,
-        d_y_coeff=1.3 / 1.5,
-        is_buried=False,
-    )
-
-
 def calculate_initial_depth(params: ProcessParams) -> jax.Array:
     """Calculates the initial depth d_PE = 2 * sqrt(D_PE * t_PE)."""
     return 2.0 * jnp.sqrt(params.d_pe_coeff * params.t_pe_hours)

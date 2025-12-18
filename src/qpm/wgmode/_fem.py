@@ -19,22 +19,22 @@ memory = Memory(location=".cache", verbose=0)
 class SimulationConfig:
     """Configuration for waveguide simulation."""
 
-    wavelength_um: float = 1.031
-    width_min: float = -60.0
-    width_max: float = 60.0
-    depth_min: float = -5.0
-    depth_max: float = 25.0
-    core_resolution: float = 0.5
-    cladding_resolution: float = 1.0
-    core_width_half: float = 10.0
-    core_depth_max: float = 15.0
-    core_distance: float = 2.0
-    num_modes: int = 2
-    plot_modes: bool = True
-    n_guess_offset: float = 5e-3
-    process_params: ape.ProcessParams | None = None
-    upper_cladding_n: float = 1.0
-    apply_upper_cladding: bool | None = None
+    wavelength_um: float
+    width_min: float
+    width_max: float
+    depth_min: float
+    depth_max: float
+    core_resolution: float
+    cladding_resolution: float
+    core_width_half: float
+    core_depth_max: float
+    core_distance: float
+    num_modes: int
+    plot_modes: bool
+    n_guess_offset: float
+    process_params: ape.ProcessParams
+    upper_cladding_n: float
+    apply_upper_cladding: bool | None
 
 
 @dataclass
@@ -87,7 +87,7 @@ def new_simulation_context(cfg: SimulationConfig) -> SimulationContext:
     basis_obj = Basis(mesh_obj, ElementTriP1())
 
     # 2. Physics Initialization (Pre-compute Index Profile)
-    params = cfg.process_params if cfg.process_params is not None else ape.new_default_process_params()
+    params = cfg.process_params
 
     # Calculate substrate index
     n_sub = mgoslt.sellmeier_n_eff(cfg.wavelength_um, params.temp_c)
@@ -169,3 +169,12 @@ def compute_modes_from_config(cfg: SimulationConfig) -> tuple[SimulationContext,
     """
     ctx = new_simulation_context(cfg)
     return ctx, solve_eigenmodes(ctx)
+
+
+def compute_tm00(cfg: SimulationConfig) -> ModeResult | None:
+    """
+    Finds the fundamental TM00 mode for the given configuration.
+    Uses cached compute_modes_from_config.
+    """
+    _, modes = compute_modes_from_config(cfg)
+    return find_tm00_mode(modes)

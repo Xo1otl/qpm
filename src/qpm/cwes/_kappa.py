@@ -14,24 +14,15 @@ EPS0 = 8.854187e-18  # Vacuum permittivity in F/um
 class KappaConfig:
     """Configuration for Kappa calculation."""
 
-    fund_wavelength: float = 1.031
-    shg_wavelength: float = 0.5155
-    x_min: float = -2.0
-    x_max: float = 12.0
-    y_min: float = -15.0
-    y_max: float = 15.0
-    nx: int = 300
-    ny: int = 400
-    d33_val: float = 1.38e-5  # Nonlinear coefficient in um/V
-
-
-def get_mode_for_wavelength(wavelength: float) -> wgmode.ModeResult | None:
-    """Simulates/Finds the TM00 mode for a given wavelength."""
-    print(f"Simulating for wavelength {wavelength} um...")
-    cfg = wgmode.SimulationConfig(wavelength_um=wavelength, plot_modes=False)
-    ctx = wgmode.new_simulation_context(cfg)
-    modes = wgmode.solve_eigenmodes(ctx)
-    return wgmode.find_tm00_mode(modes)
+    fund_wavelength: float
+    shg_wavelength: float
+    x_min: float
+    x_max: float
+    y_min: float
+    y_max: float
+    nx: int
+    ny: int
+    d33_val: float
 
 
 def interpolate_field(result: wgmode.ModeResult, grid_depth: np.ndarray, grid_width: np.ndarray) -> np.ndarray:
