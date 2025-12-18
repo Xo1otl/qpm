@@ -1,92 +1,18 @@
-from dataclasses import dataclass
-
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.interpolate import griddata
-from solve_with_femwell import ModeResult, SimulationConfig, compute_modes_from_config, find_tm00_mode
+from solve_with_femwell import compute_modes_from_config
+
+from qpm import cwes, wgmode
 
 # Constants
-C_LIGHT_UMS = 2.99792458e14  # Speed of light in um/s
-EPS0 = 8.854187e-18  # Vacuum permittivity in F/um
-D33_VAL = 1.38e-5  # Nonlinear coefficient in um/V
 PLOT_FILENAME = "kappa_calculation_debug.png"
 
 
-@dataclass
-class KappaConfig:
-    fund_wavelength: float = 1.031
-    shg_wavelength: float = 0.5155
-    x_min: float = -2.0
-    x_max: float = 12.0
-    y_min: float = -15.0
-    y_max: float = 15.0
-    nx: int = 300
-    ny: int = 400
-
-
-def simulate_wavelength(wavelength: float) -> ModeResult | None:
+def simulate_wavelength(wavelength: float) -> wgmode.ModeResult | None:
     print(f"\nSimulating for wavelength {wavelength} um...")
-    cfg = SimulationConfig(wavelength_um=wavelength, plot_modes=False)
+    cfg = wgmode.SimulationConfig(wavelength_um=wavelength, plot_modes=False)
     _, modes = compute_modes_from_config(cfg)
-    return find_tm00_mode(modes)
-
-
-def interpolate_field(result: ModeResult, grid_depth: np.ndarray, grid_width: np.ndarray) -> np.ndarray:
-    """
-    Extracts field data from FEM basis and interpolates onto a regular grid.
-
-    Args:
-        result: The mode result containing field data.
-        grid_depth: Meshgrid array for depth (x).
-        grid_width: Meshgrid array for width (y).
-
-    Returns:
-        Interpolated electric field array.
-    """
-    basis = result.field_data.basis
-    # basis.doflocs is [width, depth], so we transpose to (N, 2)
-    # The columns are [width (y), depth (x)]
-    points_mesh = basis.doflocs.T
-    values_mesh = result.field_data.E
-
-    # Handle Vector Modes (blocked data [Ex, Ey, Ez])
-    if values_mesh.size == 3 * points_mesh.shape[0]:
-        v_reshaped = values_mesh.reshape(3, -1)
-        energies = np.sum(np.abs(v_reshaped) ** 2, axis=1)
-        dominant_idx = np.argmax(energies)
-        print(f"    -> Mode dominant component: {dominant_idx} (Energy ratios: {energies / np.max(energies)})")
-        values_mesh = v_reshaped[dominant_idx, :]
-    elif values_mesh.size != points_mesh.shape[0]:
-        print(f"    Warning: Basis size mismatch ({values_mesh.size} vs {points_mesh.shape[0]}). Truncating.")
-        values_mesh = values_mesh[: points_mesh.shape[0]]
-
-    # width corresponds to y, depth corresponds to x
-    # points_mesh is [y, x]
-    # We query at (grid_width, grid_depth)
-    return griddata(points_mesh, values_mesh, (grid_width, grid_depth), method="linear", fill_value=0.0)
-
-
-def compute_overlap(
-    e_fund: np.ndarray,
-    e_shg: np.ndarray,
-    xx: np.ndarray,
-    area_elem: float,
-    shg_wavelength: float,
-) -> tuple[float, float, complex, np.ndarray]:
-    """Calculates the overlap integral and kappa coefficient."""
-
-    # Nonlinearity Profile (D33 only in the core, x >= 0)
-    d_profile = np.where(xx >= 0, D33_VAL, 0.0)
-
-    omega_2 = 2 * np.pi * C_LIGHT_UMS / shg_wavelength
-
-    # Note: Ensure conjugate is on the generated field (SHG)
-    integrand = np.conj(e_shg) * d_profile * (e_fund**2)
-
-    overlap_integral = np.sum(integrand) * area_elem
-    kappa_complex = (omega_2 * EPS0 / 4.0) * overlap_integral
-
-    return overlap_integral, np.abs(kappa_complex), kappa_complex, integrand
+    return wgmode.find_tm00_mode(modes)
 
 
 def plot_kappa_vis(x_grid: np.ndarray, y_grid: np.ndarray, e_fund: np.ndarray, e_shg: np.ndarray, integrand: np.ndarray) -> None:
@@ -118,7 +44,7 @@ def plot_kappa_vis(x_grid: np.ndarray, y_grid: np.ndarray, e_fund: np.ndarray, e
 
 def run_kappa_calculation() -> None:
     print("--- Kappa Calculation Script ---")
-    cfg = KappaConfig()
+    cfg = cwes.KappaConfig()
 
     # 1. Simulate
     tm00_fund = simulate_wavelength(cfg.fund_wavelength)
@@ -140,16 +66,16 @@ def run_kappa_calculation() -> None:
 
     # 3. Interpolate
     print("    Interpolating Fundamental field...")
-    e_fund = interpolate_field(tm00_fund, xx, yy)
+    e_fund = cwes.interpolate_field(tm00_fund, xx, yy)
     print("    Interpolating SHG field...")
-    e_shg = interpolate_field(tm00_shg, xx, yy)
+    e_shg = cwes.interpolate_field(tm00_shg, xx, yy)
 
     # 4. Compute
     dx = x_grid[1] - x_grid[0]
     dy = y_grid[1] - y_grid[0]
     area_elem = dx * dy
 
-    overlap, kappa_abs, kappa_c, integrand = compute_overlap(e_fund, e_shg, xx, area_elem, cfg.shg_wavelength)
+    overlap, kappa_abs, kappa_c, integrand = cwes.compute_overlap(e_fund, e_shg, xx, area_elem, cfg)
 
     print("\n--- Result ---")
     print(f"Overlap Integral: {overlap:.4e}")

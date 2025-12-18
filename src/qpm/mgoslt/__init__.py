@@ -10,7 +10,6 @@ SELLMEIER_PARAMS = {
 
 @jit
 def sellmeier_n_eff(wl: jax.Array, temp: jax.Array) -> jax.Array:
-    """Sellmeier方程式を用いて実効屈折率を計算"""
     f = (temp - 24.5) * (temp + 24.5 + 2.0 * 273.16)
     lambda_sq = wl**2
     a, b = SELLMEIER_PARAMS["a"], SELLMEIER_PARAMS["b"]
@@ -26,7 +25,6 @@ def sellmeier_n_eff(wl: jax.Array, temp: jax.Array) -> jax.Array:
 
 @jit
 def calc_twm_delta_k(wl1: jax.Array, wl2: jax.Array, t: jax.Array) -> jax.Array:
-    """Three-Wave Mixingの位相不整合量を計算"""
     wl_sum = (wl1 * wl2) / (wl1 + wl2)
     n1, n2, n_sum = (
         sellmeier_n_eff(wl1, t),
