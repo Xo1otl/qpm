@@ -2,18 +2,14 @@ from dataclasses import dataclass
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 import plotly.graph_objects as go
 from jax.scipy.special import erf
 
 from qpm import mgoslt
 
 
-# --- Data Structures ---
 @dataclass
 class ProcessParams:
-    """Parameters for the waveguide fabrication process."""
-
     temp_c: float
     d_pe_coeff: float  # Diffusivity for Proton Exchange (um^2/h)
     t_pe_hours: float  # Time for Proton Exchange (h)
@@ -21,29 +17,24 @@ class ProcessParams:
     t_anneal_hours: float  # Annealing time (h)
     d_x_coeff: float  # Annealing Diffusivity depth (um^2/h)
     d_y_coeff: float  # Annealing Diffusivity width (um^2/h)
+    is_buried: bool = False  # Whether the structure is buried (infinite boundary)
 
 
 @dataclass
 class SimulationGrid:
-    """Grid for simulation coordinates."""
-
     x_depth: jax.Array
     y_width: jax.Array
 
 
 @dataclass
 class RefractiveIndexResult:
-    """Result of refractive index calculation."""
-
     n_profile: jax.Array
     n_sub: float
     wl_um: float
     temp_c: float
 
 
-# --- Domain Logic ---
 def new_standard_process_params() -> ProcessParams:
-    """Initializes the standard process parameters based on experimental data."""
     return ProcessParams(
         temp_c=70.0,
         d_pe_coeff=0.045,
@@ -52,6 +43,7 @@ def new_standard_process_params() -> ProcessParams:
         t_anneal_hours=100.0,
         d_x_coeff=1.3,
         d_y_coeff=1.3 / 1.5,
+        is_buried=False,
     )
 
 
@@ -81,7 +73,9 @@ def concentration_distribution(x: jax.Array, y: jax.Array, params: ProcessParams
 
     Physics:
     - Initial profile: Rectangular block of width W (y) and depth d_PE (x).
-    - Boundary Condition: Reflecting (Neumann) at x=0.
+    - Boundary Condition:
+        - If not buried: Reflecting (Neumann) at x=0.
+        - If buried: Infinite (bulk) medium.
     - Solution: Product of 1D error function solutions (Cx * Cy).
     """
     d_pe = calculate_initial_depth(params)
@@ -90,11 +84,17 @@ def concentration_distribution(x: jax.Array, y: jax.Array, params: ProcessParams
 
     # Verticla Diffusion (x direction - depth)
     lx = 2.0 * jnp.sqrt(params.d_x_coeff * t_diff)
-    # Boundary at x=0 is reflecting, so we simulate a source from -d_PE to d_PE
-    # C_x = 0.5 * [erf((d_PE - x)/Lx) + erf((d_PE + x)/Lx)]
-    # Note: The original code had (d_PE + x) which corresponds to the image source at -d_PE to 0
-    # ensuring dC/dx = 0 at x=0.
-    c_x = 0.5 * (erf((d_pe - x) / lx) + erf((d_pe + x) / lx))
+
+    if params.is_buried:
+        # Buried structure: infinite boundary condition.
+        # Source is finite from 0 to d_PE.
+        # C_x = 0.5 * (erf((d_pe - x) / lx) + erf(x / lx))
+        c_x = 0.5 * (erf((d_pe - x) / lx) + erf(x / lx))
+    else:
+        # Surface structure: reflecting boundary at x=0.
+        # Equivalent to source from -d_PE to d_PE.
+        # C_x = 0.5 * [erf((d_PE - x)/Lx) + erf((d_PE + x)/Lx)]
+        c_x = 0.5 * (erf((d_pe - x) / lx) + erf((d_pe + x) / lx))
 
     # Horizontal Diffusion (y direction - width)
     ly = 2.0 * jnp.sqrt(params.d_y_coeff * t_diff)
@@ -125,17 +125,21 @@ def calculate_index_profile(grid: SimulationGrid, wl_um: float, params: ProcessP
 
 
 # --- Visualization ---
-def create_index_heatmap(result: RefractiveIndexResult, x_coords: jax.Array, y_coords: jax.Array) -> go.Figure:
+def create_index_heatmap(result: RefractiveIndexResult, x_coords: jax.Array, y_coords: jax.Array, title_suffix: str = "") -> go.Figure:
     """Generates a heatmap of the index profile."""
-    # Convert JAX arrays to Numpy for Plotly
-    z_np = np.array(result.n_profile)
-    x_ax = np.array(y_coords)  # Width is typically x-axis in plots
-    y_ax = np.array(x_coords)  # Depth is typically y-axis in plots
-
-    fig = go.Figure(data=go.Heatmap(z=z_np, x=x_ax, y=y_ax, colorscale="Viridis", colorbar={"title": "Refractive Index"}, reversescale=False))
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=result.n_profile,
+            x=y_coords,  # Width is typically x-axis in plots
+            y=x_coords,  # Depth is typically y-axis in plots
+            colorscale="Viridis",
+            colorbar={"title": "Refractive Index"},
+            reversescale=False,
+        ),
+    )
 
     fig.update_layout(
-        title=f"Refractive Index Distribution @ {result.wl_um} um, {result.temp_c}°C (n_sub={result.n_sub:.4f})",
+        title=f"Refractive Index Distribution @ {result.wl_um} um, {result.temp_c}°C{title_suffix} (n_sub={result.n_sub:.4f})",
         xaxis_title="Width (µm)",
         yaxis_title="Depth (µm)",
         yaxis={"autorange": "reversed"},  # Depth increases downwards
@@ -145,7 +149,6 @@ def create_index_heatmap(result: RefractiveIndexResult, x_coords: jax.Array, y_c
     return fig
 
 
-# --- Main Execution ---
 def main() -> None:
     print("--- QPM Index Construction (Refactored) ---")
 
@@ -183,7 +186,7 @@ def main() -> None:
     val_fund_0 = peak_fund_res.n_profile
     val_sh_0 = peak_sh_res.n_profile
 
-    print("\nPeak Index (x=0, y=0) after Annealing:")
+    print("\nPeak Index (x=0, y=0) after Annealing (Surface):")
     print(f"  n(@{wl_fund}um): {val_fund_0:.6f} (Delta: {val_fund_0 - n_sub_fund:.6f})")
     print(f"  n(@{wl_sh:.4f}um): {val_sh_0:.6f} (Delta: {val_sh_0 - n_sub_sh:.6f})")
 
@@ -194,8 +197,7 @@ def main() -> None:
     print(f"\nIndex at x={x_sample}, y={y_sample}:")
     print(f"  n(@{wl_fund}um): {sample_res.n_profile:.6f}")
 
-    # Generate Plot
-    # Define grid
+    # Generate Plot for Surface
     x_vec = jnp.linspace(0, 40, 200)
     y_vec = jnp.linspace(-40, 40, 200)
     y_grid, x_grid = jnp.meshgrid(y_vec, x_vec)
@@ -209,6 +211,31 @@ def main() -> None:
 
     fig = create_index_heatmap(result_fund, x_vec, y_vec)
     fig.show()
+
+    # --- Buried Calculation ---
+    print("\n--- Buried Calculation ---")
+    params_buried = new_standard_process_params()
+    params_buried.is_buried = True
+
+    # Check Peak Index at (0,0) for Buried
+    peak_fund_res_buried = calculate_index_profile(SimulationGrid(x_depth=jnp.array(0.0), y_width=jnp.array(0.0)), wl_fund, params_buried)
+    val_fund_0_buried = peak_fund_res_buried.n_profile
+    print(f"Peak Index (x=0, y=0) after Annealing (Buried):")
+    print(f"  n(@{wl_fund}um): {val_fund_0_buried:.6f} (Delta: {val_fund_0_buried - n_sub_fund:.6f})")
+
+    # Generate Plot for Buried
+    # For buried, we might want to see x < 0 as well to verify diffusion "upwards"
+    x_vec_buried = jnp.linspace(-20, 40, 200)  # Start from negative depth
+    y_grid_buried, x_grid_buried = jnp.meshgrid(y_vec, x_vec_buried)
+    grid_buried = SimulationGrid(x_depth=x_grid_buried, y_width=y_grid_buried)
+
+    result_fund_buried = calculate_index_profile(grid_buried, wl_fund, params_buried)
+
+    plot_filename_buried = "index_distribution_fund_buried.html"
+    print(f"Generating plot for Buried Fundamental wave to {plot_filename_buried}...")
+
+    fig_buried = create_index_heatmap(result_fund_buried, x_vec_buried, y_vec, title_suffix=" (Buried)")
+    fig_buried.show()
 
 
 if __name__ == "__main__":

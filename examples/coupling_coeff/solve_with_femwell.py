@@ -7,23 +7,27 @@ import numpy as np
 from calculate_index import concentration_distribution, get_delta_n0, new_standard_process_params
 from femwell.maxwell.waveguide import Mode, compute_modes
 from femwell.mesh import mesh_from_OrderedDict
+from joblib import Memory
 from shapely.geometry import box
 from skfem import Basis, ElementTriP1, Mesh
 from skfem.io import from_meshio
 
 from qpm import mgoslt
 
+memory = Memory(location=".cache", verbose=0)
+
 
 @dataclass
 class SimulationConfig:
-    """Configuration for the waveguide mode simulation."""
-
     wavelength_um: float = 1.031
     width_min: float = -60.0
     width_max: float = 60.0
     depth_min: float = -5.0
     depth_max: float = 25.0
-    core_resolution: float = 0.5
+    core_resolution: float = 0.25
+    cladding_resolution: float = 1.0
+    core_width_half: float = 10.0
+    core_depth_max: float = 15.0
     core_distance: float = 2.0
     num_modes: int = 3
     plot_modes: bool = True
@@ -51,16 +55,19 @@ type ModeList = list[ModeResult]
 
 
 def new_simulation_context(cfg: SimulationConfig) -> SimulationContext:
-    """
-    Factory: centralized initialization logic.
-    Constructs the mesh, basis, and pre-calculates the material distribution.
-    """
     # 1. Define Geometry and Mesh
-    domain = box(cfg.width_min, cfg.depth_min, cfg.width_max, cfg.depth_max)
-    shapes = OrderedDict([("core", domain)])
+    full_domain = box(cfg.width_min, cfg.depth_min, cfg.width_max, cfg.depth_max)
+    core_domain = box(-cfg.core_width_half, cfg.depth_min, cfg.core_width_half, cfg.core_depth_max)
+    cladding_domain = full_domain.difference(core_domain)
+
+    shapes = OrderedDict([("core", core_domain), ("cladding", cladding_domain)])
     resolutions = {
         "core": {
             "resolution": cfg.core_resolution,
+            "distance": cfg.core_distance,
+        },
+        "cladding": {
+            "resolution": cfg.cladding_resolution,  # Coarser resolution
             "distance": cfg.core_distance,
         },
     }
@@ -105,7 +112,7 @@ def solve_eigenmodes(ctx: SimulationContext) -> ModeList:
         epsilon,
         wavelength=ctx.config.wavelength_um,
         num_modes=ctx.config.num_modes,
-        order=1,
+        order=2,
         n_guess=peak_n,
     )
 
@@ -144,8 +151,6 @@ def verify_single_mode_condition(results: ModeList) -> None:
     elif guided_count == 1:
         print("SUCCESS: Single-Mode operation achieved (Fundamental only).")
     else:
-        # Check if it's strictly single mode (only mode 0) or if we allow degenerate pairs (like TE/TM)
-        # For this specific task, usually we want just one guided mode or we check specifically for higher order.
         print(f"FAIL: Multi-mode behavior detected ({guided_count} modes guided).")
         for m in guided_modes:
             print(f"  - Mode {m.index}: n_eff={m.n_eff:.6f}")
@@ -191,17 +196,25 @@ def plot_mode_result(ctx: SimulationContext, result: ModeResult) -> None:
     plt.close()
 
 
+@memory.cache
+def compute_modes_from_config(cfg: SimulationConfig) -> tuple[SimulationContext, ModeList]:
+    """
+    Wrapper for solve_eigenmodes that caches results based on the configuration.
+    This avoids re-running the expensive FEM solver if the config hasn't changed.
+    """
+    ctx = new_simulation_context(cfg)
+    return ctx, solve_eigenmodes(ctx)
+
+
 def run() -> None:
     print("--- RUNNING WAVEGUIDE SIMULATION ---")
 
     # 1. Initialization
     cfg = SimulationConfig()
-    ctx = new_simulation_context(cfg)
-
-    print(f"Substrate Index (n_sub): {ctx.n_sub:.6f}")
 
     # 2. Computation
-    modes = solve_eigenmodes(ctx)
+    ctx, modes = compute_modes_from_config(cfg)
+    print(f"Substrate Index (n_sub): {ctx.n_sub:.6f}")
 
     # 3. Visualization
     if cfg.plot_modes:
