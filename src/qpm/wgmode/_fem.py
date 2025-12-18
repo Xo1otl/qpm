@@ -5,14 +5,17 @@ import jax.numpy as jnp
 import numpy as np
 from femwell.maxwell.waveguide import Mode, compute_modes
 from femwell.mesh import mesh_from_OrderedDict
+from joblib import Memory
 from shapely.geometry import box
 from skfem import Basis, ElementTriP1, Mesh
 from skfem.io import from_meshio
 
 from qpm import ape, mgoslt
 
+memory = Memory(location=".cache", verbose=0)
 
-@dataclass(frozen=True)
+
+@dataclass
 class SimulationConfig:
     """Configuration for waveguide simulation."""
 
@@ -26,7 +29,7 @@ class SimulationConfig:
     core_width_half: float = 10.0
     core_depth_max: float = 15.0
     core_distance: float = 2.0
-    num_modes: int = 3
+    num_modes: int = 2
     plot_modes: bool = True
     n_guess_offset: float = 5e-3
     process_params: ape.ProcessParams | None = None
@@ -56,6 +59,7 @@ class ModeResult:
 type ModeList = list[ModeResult]
 
 
+# FIXME: The code is too tightly coupled; individual processes should be separeted into functions as defined in the documentation rather than being hardcoded.
 def new_simulation_context(cfg: SimulationConfig) -> SimulationContext:
     """
     Creates a new simulation context with mesh and refractive index distribution.
@@ -145,3 +149,13 @@ def find_tm00_mode(results: ModeList) -> ModeResult | None:
     # Sort by n_eff descending
     tm_modes.sort(key=lambda m: m.n_eff, reverse=True)
     return tm_modes[0]
+
+
+@memory.cache
+def compute_modes_from_config(cfg: SimulationConfig) -> tuple[SimulationContext, ModeList]:
+    """
+    Wrapper for solve_eigenmodes that caches results based on the configuration.
+    This avoids re-running the expensive FEM solver if the config hasn't changed.
+    """
+    ctx = new_simulation_context(cfg)
+    return ctx, solve_eigenmodes(ctx)

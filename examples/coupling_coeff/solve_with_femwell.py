@@ -5,11 +5,8 @@ os.environ["JAX_PLATFORM_NAME"] = "cpu"
 
 import matplotlib.pyplot as plt
 import numpy as np
-from joblib import Memory
 
-from qpm import wgmode
-
-memory = Memory(location=".cache", verbose=0)
+from qpm import ape, wgmode
 
 
 def verify_single_mode_condition(results: wgmode.ModeList) -> None:
@@ -62,30 +59,23 @@ def plot_mode_result(ctx: wgmode.SimulationContext, result: wgmode.ModeResult) -
     axes[1].set_ylabel("")
 
     plt.tight_layout()
-    filename = f"sim_mode_{result.index}.png"
+    filename = f"out/sim_mode_{result.index}.png"
     plt.savefig(filename)
     print(f"Saved {filename}")
     plt.close()
-
-
-@memory.cache
-def compute_modes_from_config(cfg: wgmode.SimulationConfig) -> tuple[wgmode.SimulationContext, wgmode.ModeList]:
-    """
-    Wrapper for solve_eigenmodes that caches results based on the configuration.
-    This avoids re-running the expensive FEM solver if the config hasn't changed.
-    """
-    ctx = wgmode.new_simulation_context(cfg)
-    return ctx, wgmode.solve_eigenmodes(ctx)
 
 
 def run() -> None:
     print("--- RUNNING WAVEGUIDE SIMULATION ---")
 
     # 1. Initialization
+    pp = ape.new_default_process_params()
+    pp.is_buried = True
     cfg = wgmode.SimulationConfig()
+    cfg.process_params = pp
 
     # 2. Computation
-    ctx, modes = compute_modes_from_config(cfg)
+    ctx, modes = wgmode.compute_modes_from_config(cfg)
     print(f"Substrate Index (n_sub): {ctx.n_sub:.6f}")
 
     # 3. Visualization

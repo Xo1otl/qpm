@@ -23,9 +23,9 @@ def create_index_heatmap(result: ape.RefractiveIndexResult, x_coords: jax.Array,
         title=f"Refractive Index Distribution @ {result.wl_um} um, {result.temp_c}°C{title_suffix} (n_sub={result.n_sub:.4f})",
         xaxis_title="Width (µm)",
         yaxis_title="Depth (µm)",
-        yaxis={"autorange": "reversed"},  # Depth increases downwards
-        width=800,
-        height=600,
+        yaxis={"autorange": "reversed", "scaleanchor": "x", "scaleratio": 1},
+        width=700,
+        height=700,
     )
     return fig
 
@@ -79,19 +79,19 @@ def main() -> None:
     print(f"  n(@{wl_fund}um): {sample_res.n_profile:.6f}")
 
     # Generate Plot for Surface
-    x_vec = jnp.linspace(0, 40, 200)
-    y_vec = jnp.linspace(-40, 40, 200)
+    x_vec = jnp.linspace(0, 50, 200)
+    y_vec = jnp.linspace(-50, 50, 200)
     y_grid, x_grid = jnp.meshgrid(y_vec, x_vec)
 
     grid = ape.SimulationGrid(x_depth=x_grid, y_width=y_grid)
 
     result_fund = ape.calculate_index_profile(grid, wl_fund, params)
 
-    plot_filename = "index_distribution_fund.html"
+    plot_filename = "out/index_distribution_fund.html"
     print(f"\nGenerating plot for Fundamental wave to {plot_filename}...")
 
     fig = create_index_heatmap(result_fund, x_vec, y_vec)
-    fig.show()
+    fig.write_html(plot_filename)
 
     # --- Buried Calculation ---
     print("\n--- Buried Calculation ---")
@@ -106,17 +106,18 @@ def main() -> None:
 
     # Generate Plot for Buried
     # For buried, we might want to see x < 0 as well to verify diffusion "upwards"
-    x_vec_buried = jnp.linspace(-20, 40, 200)  # Start from negative depth
-    y_grid_buried, x_grid_buried = jnp.meshgrid(y_vec, x_vec_buried)
+    x_vec_buried = jnp.linspace(-50, 50, 200)  # Start from negative depth
+    y_vec_buried = jnp.linspace(-50, 50, 200)
+    y_grid_buried, x_grid_buried = jnp.meshgrid(y_vec_buried, x_vec_buried)
     grid_buried = ape.SimulationGrid(x_depth=x_grid_buried, y_width=y_grid_buried)
 
     result_fund_buried = ape.calculate_index_profile(grid_buried, wl_fund, params_buried)
 
-    plot_filename_buried = "index_distribution_fund_buried.html"
+    plot_filename_buried = "out/index_distribution_fund_buried.html"
     print(f"Generating plot for Buried Fundamental wave to {plot_filename_buried}...")
 
     fig_buried = create_index_heatmap(result_fund_buried, x_vec_buried, y_vec, title_suffix=" (Buried)")
-    fig_buried.show()
+    fig_buried.write_html(plot_filename_buried)
 
 
 if __name__ == "__main__":

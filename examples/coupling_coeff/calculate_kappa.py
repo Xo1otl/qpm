@@ -1,17 +1,20 @@
+import os
+
+os.environ["JAX_PLATFORM_NAME"] = "cpu"
+
 import matplotlib.pyplot as plt
 import numpy as np
-from solve_with_femwell import compute_modes_from_config
 
-from qpm import cwes, wgmode
+from qpm import ape, cwes, wgmode
 
-# Constants
-PLOT_FILENAME = "kappa_calculation_debug.png"
+PLOT_FILENAME = "out/kappa_calculation_debug.png"
 
 
-def simulate_wavelength(wavelength: float) -> wgmode.ModeResult | None:
+def simulate_wavelength(wavelength: float, process_params: ape.ProcessParams) -> wgmode.ModeResult | None:
     print(f"\nSimulating for wavelength {wavelength} um...")
     cfg = wgmode.SimulationConfig(wavelength_um=wavelength, plot_modes=False)
-    _, modes = compute_modes_from_config(cfg)
+    cfg.process_params = process_params
+    _, modes = wgmode.compute_modes_from_config(cfg)
     return wgmode.find_tm00_mode(modes)
 
 
@@ -44,15 +47,17 @@ def plot_kappa_vis(x_grid: np.ndarray, y_grid: np.ndarray, e_fund: np.ndarray, e
 
 def run_kappa_calculation() -> None:
     print("--- Kappa Calculation Script ---")
+    process_params = ape.new_default_process_params()
+    process_params.is_buried = True
     cfg = cwes.KappaConfig()
 
     # 1. Simulate
-    tm00_fund = simulate_wavelength(cfg.fund_wavelength)
+    tm00_fund = simulate_wavelength(cfg.fund_wavelength, process_params)
     if not tm00_fund:
         print("Error: Could not find TM00 mode for fundamental wavelength.")
         return
 
-    tm00_shg = simulate_wavelength(cfg.shg_wavelength)
+    tm00_shg = simulate_wavelength(cfg.shg_wavelength, process_params)
     if not tm00_shg:
         print("Error: Could not find TM00 mode for SHG wavelength.")
         return
