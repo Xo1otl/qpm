@@ -13,6 +13,13 @@ PLOT_FILENAME = "out/kappa_calculation_debug.png"
 def simulate_wavelength(wavelength: float, process_params: ape.ProcessParams) -> wgmode.ModeResult | None:
     print(f"\nSimulating for wavelength {wavelength} um...")
     cfg = wgmode.SimulationConfig(wavelength_um=wavelength, plot_modes=False)
+
+    # Match geometry from solve_with_femwell.py to ensure consistency
+    cfg.depth_min = -50.0
+    cfg.depth_max = 50.0
+    cfg.width_min = -50.0
+    cfg.width_max = 50.0
+
     cfg.process_params = process_params
     _, modes = wgmode.compute_modes_from_config(cfg)
     return wgmode.find_tm00_mode(modes)
@@ -49,7 +56,16 @@ def run_kappa_calculation() -> None:
     print("--- Kappa Calculation Script ---")
     process_params = ape.new_default_process_params()
     process_params.is_buried = True
+
     cfg = cwes.KappaConfig()
+
+    # Update grid to match the expanded simulation domain
+    cfg.x_min = -50.0
+    cfg.x_max = 50.0
+    cfg.y_min = -50.0
+    cfg.y_max = 50.0
+    cfg.nx = 500
+    cfg.ny = 500
 
     # 1. Simulate
     tm00_fund = simulate_wavelength(cfg.fund_wavelength, process_params)
@@ -84,7 +100,7 @@ def run_kappa_calculation() -> None:
 
     print("\n--- Result ---")
     print(f"Overlap Integral: {overlap:.4e}")
-    print(f"Kappa_SHG: {kappa_abs:.6e}")
+    print(rf"Kappa_SHG: {kappa_abs:.6e} $\text{{W}}^{-1 / 2} \mu\text{{m}}^{-1}$")
     print(f"Kappa_SHG (Complex): {kappa_c:.4e}")
 
     # 5. Plot

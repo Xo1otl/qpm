@@ -61,7 +61,7 @@ class ModeResult:
 type ModeList = list[ModeResult]
 
 
-# FIXME: The code is too tightly coupled; individual processes should be separeted into functions as defined in the documentation rather than being hardcoded.
+# NOTE: The code is too tightly coupled; individual processes should be separeted into functions as defined in the documentation rather than being hardcoded.
 def new_simulation_context(cfg: SimulationConfig) -> SimulationContext:
     """
     Creates a new simulation context with mesh and refractive index distribution.

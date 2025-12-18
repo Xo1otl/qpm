@@ -78,10 +78,10 @@ def run() -> None:
 
     # Expand domain for buried waveguide to avoid truncation
     # calculate_index.py uses +/- 50, so we use similar range
-    cfg.depth_min = -40.0
-    cfg.depth_max = 40.0
-    cfg.width_min = -40.0
-    cfg.width_max = 40.0
+    cfg.depth_min = -50.0
+    cfg.depth_max = 50.0
+    cfg.width_min = -50.0
+    cfg.width_max = 50.0
 
     # 2. Computation
     ctx, modes = wgmode.compute_modes_from_config(cfg)
