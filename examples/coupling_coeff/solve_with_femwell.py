@@ -36,14 +36,16 @@ def plot_mode_result(ctx: wgmode.SimulationContext, result: wgmode.ModeResult) -
 
     # --- Plot A: Refractive Index ---
     n_core_max = np.max(ctx.n_dist)
+    n_core_min = np.min(ctx.n_dist)
+    print(f"Refractive Index Range: min={n_core_min:.5f}, max={n_core_max:.5f}")
 
     ctx.basis.plot(
         ctx.n_dist,
         ax=axes[0],
         cmap="viridis",
         shading="gouraud",
-        # Clamp visualization to better see core contrast
-        vmin=ctx.n_sub,
+        # Use data limits to maximize contrast
+        vmin=n_core_min,
         vmax=n_core_max,
     )
 
@@ -74,18 +76,26 @@ def run() -> None:
     cfg = wgmode.SimulationConfig()
     cfg.process_params = pp
 
+    # Expand domain for buried waveguide to avoid truncation
+    # calculate_index.py uses +/- 50, so we use similar range
+    cfg.depth_min = -40.0
+    cfg.depth_max = 40.0
+    cfg.width_min = -40.0
+    cfg.width_max = 40.0
+
     # 2. Computation
     ctx, modes = wgmode.compute_modes_from_config(cfg)
     print(f"Substrate Index (n_sub): {ctx.n_sub:.6f}")
 
     # 3. Visualization
     if cfg.plot_modes:
-        tm00 = wgmode.find_tm00_mode(modes)
-        if tm00:
-            print(f"Plotting TM00 Mode (Mode Index {tm00.index})")
-            plot_mode_result(ctx, tm00)
+        guided_modes = [m for m in modes if m.is_guided]
+        if guided_modes:
+            print(f"Plotting {len(guided_modes)} guided modes...")
+            for mode in guided_modes:
+                plot_mode_result(ctx, mode)
         else:
-            print("Warning: No TM00 mode found to plot.")
+            print("Warning: No guided modes found to plot.")
 
     # 4. Verification
     verify_single_mode_condition(modes)

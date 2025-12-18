@@ -33,6 +33,8 @@ class SimulationConfig:
     plot_modes: bool = True
     n_guess_offset: float = 5e-3
     process_params: ape.ProcessParams | None = None
+    upper_cladding_n: float = 1.0
+    apply_upper_cladding: bool | None = None
 
 
 @dataclass
@@ -101,8 +103,16 @@ def new_simulation_context(cfg: SimulationConfig) -> SimulationContext:
     c_norm = np.array(ape.concentration_distribution(jnp.array(depth_vals), jnp.array(width_vals), params))
     n_dist = n_sub + delta_n0 * c_norm
 
-    # Apply air interface condition (Air for depth < 0)
-    n_dist = np.where(depth_vals < 0, 1.0, n_dist)
+    # Apply upper cladding condition
+    should_apply_cladding = cfg.apply_upper_cladding
+    if should_apply_cladding is None:
+        should_apply_cladding = not params.is_buried
+
+    if should_apply_cladding:
+        n_dist = np.where(depth_vals < 0, cfg.upper_cladding_n, n_dist)
+
+    # Ensure n_dist is a numpy array (not JAX) to avoid issues with scipy
+    n_dist = np.array(n_dist)
 
     return SimulationContext(mesh=mesh_obj, basis=basis_obj, config=cfg, n_dist=n_dist, n_sub=n_sub)
 
