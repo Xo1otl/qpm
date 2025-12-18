@@ -1,4 +1,4 @@
-from qpm import ape, cwes, wgmode
+from qpm import ape, cwes, mgoslt, wgmode
 
 
 def new_kappa_config() -> cwes.KappaConfig:
@@ -36,6 +36,7 @@ def new_simulation_config(wavelength_um: float, process_params: ape.ProcessParam
     """
     Creates a simulation configuration with the geometry defaults from calculate_kappa.py.
     """
+    process_params = process_params if process_params is not None else new_process_params()
     return wgmode.SimulationConfig(
         wavelength_um=wavelength_um,
         width_min=-50.0,
@@ -50,7 +51,9 @@ def new_simulation_config(wavelength_um: float, process_params: ape.ProcessParam
         num_modes=2,
         plot_modes=False,
         n_guess_offset=5e-3,
-        process_params=process_params if process_params is not None else new_process_params(),
+        process_params=process_params,
         upper_cladding_n=1.0,
         apply_upper_cladding=None,
+        n_sub=mgoslt.sellmeier_n_eff(wavelength_um, process_params.temp_c),
+        delta_n0=ape.get_delta_n0(wavelength_um),
     )
