@@ -43,7 +43,7 @@ def new_simulation_config(wavelength_um: float, process_params: ape.ProcessParam
         width_max=50.0,
         depth_min=-50.0,
         depth_max=50.0,
-        core_resolution=0.25,
+        core_resolution=0.5,
         cladding_resolution=1.0,
         core_width_half=10.0,
         core_depth_max=15.0,

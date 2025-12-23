@@ -26,3 +26,13 @@ ignore = ["D", "ERA001", "T201", "INP001"]
     "T201", # print
     "E501", # line too long
 ]
+
+"examples/*" = [
+    "S101",    # assert
+    "S102",    # exec
+    "T201",    # print
+    "E501",    # line too long
+    "N806",    # 先頭が大文字の変数
+    "PLR2004", # 定数をハードコードしてもよい
+    "N816",    # グローバル変数自由
+]
