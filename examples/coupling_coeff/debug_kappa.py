@@ -2,6 +2,8 @@ import os
 
 os.environ["JAX_PLATFORM_NAME"] = "cpu"
 import numpy as np
+import plotly.graph_objects as go
+
 from qpm import config, cwes, wgmode
 
 
@@ -23,6 +25,29 @@ def run_debug_calculation():
     yy, xx = np.meshgrid(y_grid, x_grid, indexing="xy")
 
     e_fund = cwes.interpolate_field(tm00_fund, xx, yy)
+
+    print("2.1 Visualizing E_fund Heatmap...")
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=np.abs(e_fund),
+            x=x_grid,
+            y=y_grid,
+            colorscale="Viridis",
+            colorbar={"title": "|E_fund|"},
+        )
+    )
+    fig.update_layout(
+        title=f"Fundamental Mode Profile (|E|) at λ={cfg.fund_wavelength * 1e9:.1f} nm",
+        xaxis_title="x (Depth) [μm]",
+        yaxis_title="y (Width) [μm]",
+        width=800,
+        height=600,
+    )
+    # Save to HTML and show (if possible)
+    output_html = "debug_e_fund.html"
+    fig.write_html(output_html)
+    print(f"    -> Saved heatmap to {output_html}")
+    # fig.show()  # Uncomment if running in an interactive environment with browser support
 
     # Grid area
     dx = x_grid[1] - x_grid[0]
