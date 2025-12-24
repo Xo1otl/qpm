@@ -1,7 +1,7 @@
 # THG最適化パラメータ
 
 # 概要
-MgOSLT/LiNbO3 THG計算再現パラメータ。
+THG計算再現パラメータ。
 
 # 動作環境
 - **入力**: 基本波 1 W @ 1031 nm のみ
@@ -27,4 +27,4 @@ MgOSLT/LiNbO3 THG計算再現パラメータ。
 # プロット設定
 - **ソース**: `examples/presentation/optimized_thg.ipynb`
 - **範囲**: 1025 - 1035 nm (1000 pts)
-- **補正**: $100 \times 1.07 / 2.84$ (%/W)
+- **バルクと%の補正**: $100 \times 1.07 / 2.84$ (%/W)
