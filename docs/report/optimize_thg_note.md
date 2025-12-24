@@ -8,7 +8,7 @@ THG計算再現パラメータ。
 - **温度**: 70°C
 
 # デバイス仕様
-- **構造**: https://github.com/Xo1otl/qpm/blob/main/examples/datasets/optimized_thg_2000_1489_e4.npy`
+- **構造**: https://github.com/Xo1otl/qpm/blob/main/examples/datasets/optimized_thg_2000_1489_e4.npy
 - **全長**: 23 mm
 
 # 光学特性
