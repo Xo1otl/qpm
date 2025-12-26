@@ -6,16 +6,9 @@ geminiとdeepthinkが縮退を考慮すると係数が間違っているとい�
 
 $\kappa$を符号反転した後の効率はそのドメインの寄与だけ再計算すればよく高速に探索できる
 
-多分波長ごとのドメインの寄与を行列にして一番バランス取れる符号の組み合わせをアルゴリズムで探す感じになりそう
+スピングラス問題になるため諦め
 
-あきらかに焼きなましよりましなアルゴリズムあるだろ、競プロだしたらだれか解けそう
-
-### [ETDRK4のK&Tスキーム](https://people.maths.ox.ac.uk/trefethen/publication/PDF/2005_111.pdf)
-
-このスキームで非線形項を更新してる
-
-h大きめL固定対角行列という条件から解析解を使用している
-
-対角成分0の部分は別で処理している
-
-#### [エネルギーを保存するExponential Integrator](https://www.alphaxiv.org/pdf/2506.07072)
+各種Fejer論文Design_of_quasi-phase-matching_nonlinear_crystals_.pdf
+Fejer IEEE 1992.pdf
+imeshev2000.pdf
+Noro_2024_Jpn._J._Appl._Phys._63_062002.pdf
