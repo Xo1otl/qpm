@@ -13,7 +13,7 @@ def get_lin(delta_k1: jax.Array, delta_k2: jax.Array) -> jax.Array:
 
 def phi(omega: jax.Array, h: jax.Array) -> jax.Array:
     """
-    ETD予測子で使用される積分関数 Φ(Ω, h) = (e^(Ωh) - 1) / Ω を計算する。
+    予測子で使用される積分関数 Φ(Ω, h) = (e^(Ωh) - 1) / Ω を計算する。
     JAXのjitに対応するため、jnp.whereで条件分岐を処理する。
     """
     is_small = jnp.abs(omega) < OMEGA_SMALL_EPS
@@ -24,7 +24,7 @@ def phi(omega: jax.Array, h: jax.Array) -> jax.Array:
 
 def propagate_domain(b_in: jax.Array, h: jax.Array, kappa_val: jax.Array, lin: jax.Array) -> jax.Array:
     """
-    ETD スキームの1ステップを計算する。
+    スキームの1ステップを計算する。
     """
     b1n, b2n, b3n = b_in
     lin1, lin2, lin3 = lin
