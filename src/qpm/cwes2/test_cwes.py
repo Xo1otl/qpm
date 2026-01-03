@@ -32,10 +32,7 @@ def test_cwes_consistency() -> None:
     kappas = kappa_mag * (-1) ** jnp.arange(num_domains)
 
     # --- 1. Analytical Calculation (NPDA) ---
-    # Returns S-functional. A3(L) ≈ -3 * A1^3 * S
-    # Assuming A1 = 1
-    s_val = cwes2.calc_a3_npda(kappas, kappas, widths, dk1, dk2)
-    a3_npda_mag = 3.0 * jnp.abs(s_val)
+    a3_npda_mag = jnp.abs(cwes2.calc_a3_npda(1, kappas, kappas, widths, dk1, dk2))
 
     # --- 2. Perturbation Calculation (Full CWE) ---
     b0 = jnp.array([1.0, 0.0, 0.0], dtype=jnp.complex64)
