@@ -3,7 +3,7 @@ Derivation from **CWEs** via **Integral Solution** to **Discrete Summation**. Ev
 
 # 1. CWEs
 $$
-\frac{dA_1}{dz} = i \kappa^* A_1 A_2 e^{-i \Delta k z}
+\frac{dA_1}{dz} = i \kappa(z)^* A_1 A_2 e^{-i \Delta k z}
 $$
 $$
 \frac{dA_2}{dz} = i \kappa(z) A_1^2 e^{i \Delta k z}
@@ -25,9 +25,6 @@ $$
 $$
 * $z_n = n\Lambda_0 + \Lambda_0/2$
 * $\xi = z - z_n$
-
-
-
 $$
 e^{i \Delta k z} = e^{i \Delta k z_n} \cdot e^{i \Delta k \xi}
 $$
