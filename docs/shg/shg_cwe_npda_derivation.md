@@ -1,9 +1,9 @@
 # Coupled-Wave Equations (CWE) for SHG
 SHG Coupled-Wave Equations (CWE):
 
-$$\frac{d}{dz} A_\omega(z) = -j\boldsymbol\kappa(z)^*[A_\omega(z)]^*A_{2\omega}(z)e^{-j(\Delta k)z}$$
+$$\frac{d}{dz} A_\omega(z) = -j\kappa(z)^*[A_\omega(z)]^*A_{2\omega}(z)e^{-j(\Delta k)z}$$
 
-$$\frac{d}{dz} A_{2\omega}(z) = -j\boldsymbol\kappa(z)[A_\omega(z)]^2e^{+j(\Delta k)z}$$
+$$\frac{d}{dz} A_{2\omega}(z) = -j\kappa(z)[A_\omega(z)]^2e^{+j(\Delta k)z}$$
 
 $A_\omega, A_{2\omega}$: complex amplitudes.
 
