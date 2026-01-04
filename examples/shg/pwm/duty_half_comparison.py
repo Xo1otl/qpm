@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 from plotly import graph_objects as go
 
-from qpm import cwes, mgoslt
+from qpm import cwes2, mgoslt
 
 # Constants
 NORO_CRR_FACTOR = 1.07 / 2.84 * 100
@@ -47,7 +47,7 @@ def main() -> None:
     ]
 
     # 3. Simulation & Execution
-    simulate = jax.jit(jax.vmap(cwes.simulate_shg_npda, in_axes=(None, None, 0, None)))
+    simulate = jax.jit(jax.vmap(cwes2.simulate_shg_npda, in_axes=(None, None, 0, None)))
     b0 = jnp.array(1.0 + 0.0j)
 
     fig = go.Figure()
