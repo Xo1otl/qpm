@@ -62,8 +62,8 @@ def main() -> None:
 
     try:
         print("Loading mode data...")
-        mode_fw = load_mode_data("E_fields_fw.mat")
-        mode_shw = load_mode_data("E_fields_shw.mat")
+        mode_fw = load_mode_data("E_fields_fw_veryhigh_res.mat")
+        mode_shw = load_mode_data("E_fields_shw_veryhigh_res.mat")
     except FileNotFoundError as e:
         print(f"Error loading files: {e}")
         print("Make sure E_fields_fw.mat and E_fields_shw.mat exist in the current directory.")

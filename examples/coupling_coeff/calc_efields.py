@@ -151,7 +151,7 @@ def main() -> None:
     mode_fw = solve_for_tm00(cfg, mat_fw, cfg.lambda_fw)
     if mode_fw:
         plot_field(mode_fw, "out/tm00_fw.html")
-        save_mode_data(mode_fw, "E_fields_fw_veryhigh_res.mat")
+        save_mode_data(mode_fw, "E_fields_fw.mat")
     else:
         print("Failed to find FW TM00 mode.")
 
@@ -159,7 +159,7 @@ def main() -> None:
     mode_shw = solve_for_tm00(cfg, mat_shw, cfg.lambda_shw)
     if mode_shw:
         plot_field(mode_shw, "out/tm00_shw.html")
-        save_mode_data(mode_shw, "E_fields_shw_veryhigh_res.mat")
+        save_mode_data(mode_shw, "E_fields_shw.mat")
     else:
         print("Failed to find SHW TM00 mode.")
 
