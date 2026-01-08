@@ -86,7 +86,7 @@ def solve_for_tm00(
 
     neffs, hxs, hys, hzjs = modesolver.wgmodes(
         wavelength,
-        3.0,
+        2.15,
         n_modes,
         cfg.dx,
         cfg.dy,
