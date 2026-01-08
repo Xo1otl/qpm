@@ -3,10 +3,10 @@ from dataclasses import dataclass
 import modesolver
 import numpy as np
 import plotly.graph_objects as go
+import scipy.io
 from calc_index import SimConfig, calculate_profiles
 from modesolver.postprocess import efields
 from modesolver.postprocess.poynting import poynting
-from scipy.signal import find_peaks
 
 
 @dataclass
@@ -44,21 +44,6 @@ def _get_polarization(hx: np.ndarray, hy: np.ndarray) -> int:
     return 2 if mag_hx > mag_hy else 1
 
 
-def _estimate_mode_indices(field: np.ndarray) -> tuple[int, int]:
-    """Estimates mode indices (mx, my) from field profile."""
-    abs_field = np.abs(field)
-    y_peak, x_peak = np.unravel_index(np.argmax(abs_field), abs_field.shape)
-
-    profile_x = abs_field[y_peak, :]
-    profile_y = abs_field[:, x_peak]
-
-    threshold = 0.1 * np.max(abs_field)
-    peaks_x, _ = find_peaks(profile_x, height=threshold)
-    peaks_y, _ = find_peaks(profile_y, height=threshold)
-
-    return len(peaks_x), len(peaks_y)
-
-
 def plot_field(mode: ModeData, out_path: str) -> None:
     """Plots and saves a heatmap of the electric field."""
     fig = go.Figure(data=go.Heatmap(z=np.abs(mode.ey), colorscale="Viridis", colorbar={"title": "Electric Field |Ey|"}))
@@ -71,14 +56,30 @@ def plot_field(mode: ModeData, out_path: str) -> None:
     print(f"Saved {out_path}")
 
 
+def save_mode_data(mode: ModeData, filename: str) -> None:
+    """Saves mode data to a .mat file."""
+    data = {
+        "wavelength": mode.wavelength,
+        "neff": mode.neff,
+        "mx": mode.mx,
+        "my": mode.my,
+        "ey": mode.ey,
+        "eps_y": mode.eps_y,
+        "hx": mode.hx,
+        "hy": mode.hy,
+        "hz": mode.hz,
+    }
+    scipy.io.savemat(filename, data)
+    print(f"Saved mode data to {filename}")
+
+
 def solve_for_tm00(
     cfg: SimConfig,
     materials: dict[str, np.ndarray],
     wavelength: float,
-    n_modes: int,
+    n_modes: int = 1,
 ) -> ModeData | None:
-    """Runs modesolver and searches for TM00 mode (1,1)."""
-    print(f"Solving for wl={wavelength:.3f} um, TM00...")
+    print(f"Solving for wl={wavelength:.3f} um, searching for fundamental TM mode...")
 
     eps_x = materials["EpsX"]
     eps_y = materials["EpsY"]
@@ -86,7 +87,7 @@ def solve_for_tm00(
 
     neffs, hxs, hys, hzjs = modesolver.wgmodes(
         wavelength,
-        2.15,
+        2.2,
         n_modes,
         cfg.dx,
         cfg.dy,
@@ -96,7 +97,6 @@ def solve_for_tm00(
         epszz=eps_z,
     )
 
-    # Handle case where n_modes=1 and solver returns 2D arrays
     if hxs.ndim == 2:
         hxs = hxs[:, :, np.newaxis]
         hys = hys[:, :, np.newaxis]
@@ -106,43 +106,39 @@ def solve_for_tm00(
     for m in range(n_modes):
         hx = hxs[:, :, m]
         hy = hys[:, :, m]
-        hzj = hzjs[:, :, m]
         neff = neffs[m]
 
-        if _get_polarization(hx, hy) == 2:  # TM
-            mx, my = _estimate_mode_indices(hx)
+        pol = _get_polarization(hx, hy)
 
-            # Target TM00 corresponds to indices (1,1) in this convention
-            if mx == 1 and my == 1:
-                print(f"Found TM00 Mode (1,1): neff={neff:.4f}")
+        if pol == 2:
+            print(f"Found Fundamental TM Mode (TM00): neff={neff:.4f} (Mode index {m})")
 
-                # Calculate fields
-                ex, ey, ezj = efields(neff, hx, hy, hzj, wavelength, cfg.dx, cfg.dy, epsxx=eps_x, epsyy=eps_y, epszz=eps_z)
-                _, _, sz_field = poynting(ex, ey, ezj, hx, hy, hzj)
+            hzj = hzjs[:, :, m]
+            ex, ey, ezj = efields(neff, hx, hy, hzj, wavelength, cfg.dx, cfg.dy, epsxx=eps_x, epsyy=eps_y, epszz=eps_z)
+            _, _, sz_field = poynting(ex, ey, ezj, hx, hy, hzj)
 
-                # Normalize Field
-                power = np.sum(sz_field) * cfg.dx * cfg.dy
-                norm_factor = np.sqrt(376.73 / power)
-                ey_norm = ey * norm_factor
+            power = np.sum(sz_field) * cfg.dx * cfg.dy
+            norm_factor = np.sqrt(376.73 / power)
+            ey_norm = ey * norm_factor
 
-                return ModeData(
-                    wavelength=wavelength,
-                    neff=neff,
-                    mx=mx,
-                    my=my,
-                    ey=ey_norm,
-                    eps_y=eps_y,
-                    hx=hx,
-                    hy=hy,
-                    hz=hzj,
-                )
+            return ModeData(
+                wavelength=wavelength,
+                neff=neff,
+                mx=1,
+                my=1,
+                ey=ey_norm,
+                eps_y=eps_y,
+                hx=hx,
+                hy=hy,
+                hz=hzj,
+            )
 
+    print("No TM mode found.")
     return None
 
 
 def main() -> None:
     cfg = SimConfig()
-    n_modes = 1
 
     # Get Materials directly
     print("Calculating index profiles...")
@@ -152,16 +148,18 @@ def main() -> None:
     mat_shw = prepare_materials(n_shw)
 
     # Solve FW TM00
-    mode_fw = solve_for_tm00(cfg, mat_fw, cfg.lambda_fw, n_modes)
+    mode_fw = solve_for_tm00(cfg, mat_fw, cfg.lambda_fw)
     if mode_fw:
         plot_field(mode_fw, "out/tm00_fw.html")
+        save_mode_data(mode_fw, "E_fields_fw.mat")
     else:
         print("Failed to find FW TM00 mode.")
 
     # Solve SHW TM00
-    mode_shw = solve_for_tm00(cfg, mat_shw, cfg.lambda_shw, n_modes)
+    mode_shw = solve_for_tm00(cfg, mat_shw, cfg.lambda_shw)
     if mode_shw:
         plot_field(mode_shw, "out/tm00_shw.html")
+        save_mode_data(mode_shw, "E_fields_shw.mat")
     else:
         print("Failed to find SHW TM00 mode.")
 
