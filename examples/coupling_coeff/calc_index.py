@@ -23,8 +23,8 @@ class SimConfig:
     delta_n0_fw: float = 0.012
     delta_n0_shw: float = 0.017
     C0: float = 1.0
-    dx: float = 0.2  # um resolution
-    dy: float = 0.2  # um resolution
+    dx: float = 1.0  # um resolution
+    dy: float = 1.0  # um resolution
 
 
 def get_n_dist(C: np.ndarray, wavelength_um: float, T_degC: float, delta_n: float, C0: float) -> np.ndarray:

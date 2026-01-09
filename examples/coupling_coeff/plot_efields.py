@@ -42,6 +42,7 @@ class ModeData:
 def load_materials(path: pathlib.Path) -> dict[str, np.ndarray]:
     """Loads material data from a .mat file and transposes for solver."""
     data = scipy.io.loadmat(str(path))
+    print(np.shape(data["EpsX"]))
     # Solver expects (Y, X), data is (X, Y) -> Transpose
     return {
         "EpsX": data["EpsX"].T,
