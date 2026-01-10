@@ -20,15 +20,17 @@ $$K_{LIN} = \frac{\Delta k_{SHG}}{2} |B_2|^2 + \frac{\Delta k_{SHG} + \Delta k_{
 # Integral Form
 $$\boldsymbol{B}(z_n+h) = e^{i\boldsymbol{L}h} \boldsymbol{B}(z_n) + i \int_0^h e^{i\boldsymbol{L}(h-\tau')} \boldsymbol{N}(\boldsymbol{B}(z_n+\tau'), \boldsymbol{B}^*(z_n+\tau')) d\tau'$$
 
-# Picard Iteration
+$$N=\left(\begin{matrix}\kappa_{SHG}B_1^\ast B_2+\kappa_{SFG}B_2^\ast B_3\\\kappa_{SHG}B_1^2+2\kappa_{SFG}B_1^\ast B_3\\3\kappa_{SFG}B_1B_2\\\end{matrix}\right)$$
+
+# Picard / Interaction Picture
 $\phi(\omega, h) = (e^{i\omega h} - 1)/(i\omega)$. $\boldsymbol{B}^{(0)}(z_n + \tau') = e^{i\boldsymbol{L}\tau'}\boldsymbol{B}(z_n)$.
-Prediction: $\boldsymbol{B}_{pred} = e^{i\boldsymbol{l}h_n} \boldsymbol{B}_n + \boldsymbol{B}_{NL}$.
+Prediction: $\boldsymbol{B}_{pred} = e^{i\boldsymbol{L}h_n} \boldsymbol{B}_n + \boldsymbol{B}_{NL}$
 
-**element 1**:
-$$B_{NL, 1} = i e^{il_1 h_n} \left[ \kappa_{SHG, n} B_{1n}^* B_{2n} \phi(l_2-2l_1, h_n) + \kappa_{SFG, n} B_{2n}^* B_{3n} \phi(l_3-l_2-l_1, h_n) \right]$$
-
-**element 2**:
-$$B_{NL, 2} = i e^{il_2 h_n} \left[ \kappa_{SHG, n} B_{1n}^2 \phi(2l_1-l_2, h_n) + 2 \kappa_{SFG, n} B_{1n}^* B_{3n} \phi(l_3-l_1-l_2, h_n) \right]$$
-
-**element 3**:
-$$B_{NL, 3} = i e^{il_3 h_n} \left[ 3 \kappa_{SFG, n} B_{1n} B_{2n} \phi(l_1+l_2-l_3, h_n) \right]$$
+$$
+\boldsymbol{B}_{NL} = i e^{i\boldsymbol{L}h_n}
+\begin{pmatrix}
+\kappa_{SHG} B_{1n}^* B_{2n} \phi(\Delta k_{SHG}, h_n) + \kappa_{SFG} B_{2n}^* B_{3n} \phi(\Delta k_{SFG}, h_n) \\
+\kappa_{SHG} B_{1n}^2 \phi(-\Delta k_{SHG}, h_n) + 2 \kappa_{SFG} B_{1n}^* B_{3n} \phi(\Delta k_{SFG}, h_n) \\
+3 \kappa_{SFG} B_{1n} B_{2n} \phi(-\Delta k_{SFG}, h_n)
+\end{pmatrix}
+$$

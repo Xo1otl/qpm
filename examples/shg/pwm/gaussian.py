@@ -201,7 +201,7 @@ def plot_results(
 
     # Plot Simulations
     metrics_strs = []
-    for name, (amps, rmse, peak_gdd) in results_map.items():
+    for name, (amps, rmse, _) in results_map.items():
         color = "blue" if "3-Domain" in name else "red"
         dash = "solid" if "3-Domain" in name else "dot"
 
@@ -233,7 +233,8 @@ def plot_results(
             col=1,
         )
 
-        metrics_strs.append(f"[{name.split()[0]}: RMSE={rmse:.4e}, GDD={peak_gdd:.4e} ps²]")
+        # metrics_strs.append(f"[{name.split()[0]}: RMSE={rmse:.4e}, GDD={peak_gdd:.4e} ps²]")
+        metrics_strs.append(f"{name.split()[0]}: RMSE={rmse:.4e}")
 
     title_suffix = "<br>" + "<br>".join(metrics_strs)
     fig.update_layout(

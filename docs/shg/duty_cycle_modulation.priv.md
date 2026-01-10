@@ -62,6 +62,3 @@ Result:
 $$
 \kappa_{\text{eff}}(z) = \kappa_{\text{mat}} \frac{2}{m \pi} \sin(m \pi D(z))
 $$
-
-# Question
-Authors claim fixed-period ease , implementing via locked even boundaries. This left-anchoring couples domain width to centroid position, forcing monotonic correction to fix resulting phase errors. Since center-anchored geometry satisfies fixed-period constraints with zero phase error under identical  fabrication limits, does the text’s silence on this superior symmetric option suggest a conceptual conflation of periodicity with boundary alignment?
