@@ -17,4 +17,4 @@ Research outcomes: **SHG Optimization**, **SHG Duty Cycle Modulation**, **THG**,
 For CWEs (SHG & cTHG)
 
 **Conventional**: Tracking fine phase rotation by RK method $\therefore$ Slow & poor accuracy.  
-**This Work**: Picard iteration 1st approximation $\to$ 100x faster.
+**This Work**: Picard iteration 1st approximation $\to$ 1000x faster.

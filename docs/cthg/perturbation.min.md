@@ -1,5 +1,5 @@
 # Overview
-Model for **Accurate Cascaded THG** via coupled-wave equations. Distinguishes $\kappa_{SHG}$ and $\kappa_{SFG}$.
+Prediction scheme for Cascaded THG derived from **Coupled-Wave Equations** with first order **Picard / Interaction Picture**.
 
 # Coupled-Wave Equations
 $$
@@ -23,8 +23,10 @@ $$\boldsymbol{B}(z_n+h) = e^{i\boldsymbol{L}h} \boldsymbol{B}(z_n) + i \int_0^h 
 $$N=\left(\begin{matrix}\kappa_{SHG}B_1^\ast B_2+\kappa_{SFG}B_2^\ast B_3\\\kappa_{SHG}B_1^2+2\kappa_{SFG}B_1^\ast B_3\\3\kappa_{SFG}B_1B_2\\\end{matrix}\right)$$
 
 # Picard / Interaction Picture
-$\phi(\omega, h) = (e^{i\omega h} - 1)/(i\omega)$. $\boldsymbol{B}^{(0)}(z_n + \tau') = e^{i\boldsymbol{L}\tau'}\boldsymbol{B}(z_n)$.
-Prediction: $\boldsymbol{B}_{pred} = e^{i\boldsymbol{L}h_n} \boldsymbol{B}_n + \boldsymbol{B}_{NL}$
+Linear flow only:
+$$\boldsymbol{B}^{(0)}(z_n + \tau') = e^{i\boldsymbol{L}\tau'}\boldsymbol{B}(z_n)$$
+
+Prediction $\boldsymbol{B}_{pred} = e^{i\boldsymbol{L}h_n} \boldsymbol{B}_n + \boldsymbol{B}_{NL}$ with $\phi(\omega, h) = (e^{i\omega h} - 1)/(i\omega)$:
 
 $$
 \boldsymbol{B}_{NL} = i e^{i\boldsymbol{L}h_n}
