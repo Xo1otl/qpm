@@ -16,5 +16,5 @@ Research outcomes: **SHG Optimization**, **SHG Duty Cycle Modulation**, **THG**,
 # Numerical Solver
 For CWEs (SHG & cTHG)
 
-**Conventional**: Tracking fine phase rotation by RK method $\therefore$ Slow & poor accuracy.  
-**This Work**: Picard iteration 1st approximation $\to$ 1000x faster.
+**Conventional**: RK is 1000x slower and imprecise. NPDA-based solvers are restricted by the non-depletion approximation.  
+**This Work**: Picard iteration (1st approx.) is the fastest and superior choice for gradual envelope curves.

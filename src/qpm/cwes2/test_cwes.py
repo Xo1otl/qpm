@@ -1,3 +1,5 @@
+import time
+
 import jax.numpy as jnp
 
 from qpm import cwes2, mgoslt
@@ -32,12 +34,21 @@ def test_cwes_consistency() -> None:
     kappas = kappa_mag * (-1) ** jnp.arange(num_domains)
 
     # --- 1. Analytical Calculation (NPDA) ---
-    a3_npda_mag = jnp.abs(cwes2.calc_a3_npda(1, kappas, kappas, widths, dk1, dk2))
+    t0 = time.perf_counter()
+    val_a3_npda = cwes2.calc_a3_npda(1, kappas, kappas, widths, dk1, dk2)
+    val_a3_npda.block_until_ready()
+    t1 = time.perf_counter()
+    time_npda = t1 - t0
+    a3_npda_mag = jnp.abs(val_a3_npda)
 
     # --- 2. Perturbation Calculation (Full CWE) ---
     b0 = jnp.array([1.0, 0.0, 0.0], dtype=jnp.complex64)
     # Pass kappas for both SHG and SFG
+    t0 = time.perf_counter()
     b_final = cwes2.simulate_twm(widths, kappas, kappas, dk1, dk2, b0)
+    b_final.block_until_ready()
+    t1 = time.perf_counter()
+    time_cwes = t1 - t0
 
     # |A3| = |B3| (phase rotation preserves magnitude)
     a3_cwes_mag = jnp.abs(b_final[2])
@@ -47,5 +58,7 @@ def test_cwes_consistency() -> None:
     # We expect them to be reasonably close (e.g., within 1%).
     print(f"NPDA |A3|: {a3_npda_mag}")
     print(f"CWES |A3|: {a3_cwes_mag}")
+    print(f"NPDA Time: {time_npda * 1e3:.2f} ms")
+    print(f"CWES Time: {time_cwes * 1e3:.2f} ms")
 
     assert jnp.allclose(a3_cwes_mag, a3_npda_mag, rtol=1e-2)
