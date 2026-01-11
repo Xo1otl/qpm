@@ -20,3 +20,4 @@
 - [FHG (SHG+SHG, Tandem)](https://doi.org/10.1364/OE.471450): タンデムQPMによる高次高調波発生（SHG+SHG）
 - [SHG](https://doi.org/10.1364/OL.23.001880): 広帯域化、位相シフトセグメント
 - [OPG](https://doi.org/10.1016/j.ijleo.2020.165466): 広帯域化、位相シフトセグメント
+- [SHG](https://sci-hub.se/10.1109/3.161322): Fejerの論文、2領域分割によるDuty比変調があると述べている
