@@ -27,10 +27,10 @@ Effective nonlinearity $d_{eff} = \frac{2}{\pi} d_{33}$ (first-order QPM).
 Scalar field $E_{\omega} \equiv \vec{E}_{\omega} \cdot \hat{y}$.
 
 ### 1. SHG ($\omega + \omega \to 2\omega$)
-$$\kappa_{\text{SHG}} = \frac{\omega_{2}\epsilon_0}{4} d_{eff} \iint [E_{y, 2\omega}]^* [E_{y, \omega}]^2 \, dx dy$$
+$$\kappa_{\text{SHG}} = \frac{\omega_{1}\epsilon_0}{2} d_{eff} \iint [E_{y, 2\omega}]^* [E_{y, \omega}]^2 \, dx dy$$
 
 ### 2. SFG ($\omega + 2\omega \to 3\omega$)
-$$\kappa_{\text{SFG}} = \frac{\omega_3\epsilon_0}{2} d_{eff} \iint [E_{y, 3\omega}]^* E_{y, 2\omega} E_{y, \omega} \, dx dy$$
+$$\kappa_{\text{SFG}} = \frac{\omega_1\epsilon_0}{2} d_{eff} \iint [E_{y, 3\omega}]^* E_{y, 2\omega} E_{y, \omega} \, dx dy$$
 
 # Parameters
 | Parameter | Symbol | Value | Unit |

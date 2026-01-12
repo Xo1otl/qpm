@@ -1,8 +1,8 @@
 # Overview
-**NDPA Derivation** for **Accurate CWEs**.
+**NDPA Derivation** for **CWEs**.
 
 # Coupled-Wave Equations (NDPA)
-Approximation: $A_1(z) \approx A_1(0) = const$. $\kappa_{SHG} \neq \kappa_{SFG}$.
+Approximation: $A_1(z) \approx A_1(0) = const$.
 $$\begin{aligned}
 \frac{d A_2}{dz} &= i \kappa_{SHG}(z) A_1^2 e^{-i\Delta k_{SHG} z} \\
 \frac{d A_3}{dz} &= i \, 3\kappa_{SFG}(z) A_1 A_2 e^{-i\Delta k_{SFG} z}
