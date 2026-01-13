@@ -9,7 +9,7 @@ $$
 $$
 $\Delta k_{SHG}, \Delta k_{SFG}$: Phase mismatches. $\kappa_{SHG}, \kappa_{SFG}$: Coupling coefficients ($z$-dependent).
 
-# Canonical Form
+# Hamiltonian Form
 Rotation $\boldsymbol{B}(z) = e^{i\boldsymbol{L}z} \boldsymbol{A}(z)$.
 $$\boldsymbol{L} = \begin{pmatrix} 0 & 0 & 0 \\ 0 & \Delta k_{SHG} & 0 \\ 0 & 0 & \Delta k_{SHG} + \Delta k_{SFG} \end{pmatrix}$$
 

@@ -17,4 +17,4 @@ Research outcomes: **SHG Optimization**, **SHG Duty Cycle Modulation**, **THG**,
 For CWEs (SHG & cTHG)
 
 **Conventional**: RK is 1000x slower and imprecise. NPDA-based solvers are restricted by the non-depletion approximation.  
-**This Work**: Picard iteration (1st approx.) is the fastest and superior choice for gradual envelope curves.
+**This Work**: Picard iteration (1st approx.) is the fastest and superior choice for CWEs.
