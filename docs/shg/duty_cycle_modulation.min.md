@@ -34,24 +34,26 @@ $$
 
 # 4. Structure Factor
 QPM $\Delta k \approx G_m = 2\pi m / \Lambda_0$.
+Model: Background $+1$, Pulse $-1$ (Width $w_n$).
 $$
-I_{\text{unit}}(n) = -\int_{-\Lambda_0/2}^{-w_n/2} e^{i G_m \xi} d\xi + \int_{-w_n/2}^{+w_n/2} e^{i G_m \xi} d\xi - \int_{+w_n/2}^{+\Lambda_0/2} e^{i G_m \xi} d\xi
+I_{\text{unit}}(n) = \int_{-\Lambda_0/2}^{\Lambda_0/2} (+1) e^{i G_m \xi} d\xi - 2 \int_{-w_n/2}^{+w_n/2} (+1) e^{i G_m \xi} d\xi
 $$
 
 Pulse ($w_n = D_n \Lambda_0$):
+First term vanishes ($m \neq 0$).
 $$
-\int_{-w_n/2}^{+w_n/2} e^{i G_m \xi} d\xi = \frac{2}{G_m} \sin\left(\frac{G_m w_n}{2}\right)
+\int_{-w_n/2}^{+w_n/2} (+1) e^{i G_m \xi} d\xi = \frac{2}{G_m} \sin\left(\frac{G_m w_n}{2}\right)
 $$
-Gap sum vanishes. Total:
+Total:
 $$
-I_{\text{unit}}(n) = \Lambda_0 \frac{2}{m \pi} \sin(m \pi D_n)
+I_{\text{unit}}(n) = - \Lambda_0 \frac{2}{m \pi} \sin(m \pi D_n)
 $$
 
 # 5. The Continuum Limit
 Riemann Sum $\Lambda_0 \to dz$:
-$$A_2(L) = i \kappa_{\text{mat}} A_1^2 \sum_{n=0}^{N-1} e^{i \Delta k z_n} \cdot \left( \Lambda_0 \frac{2}{m \pi} \sin(m \pi D_n) \right)$$
+$$A_2(L) = i \kappa_{\text{mat}} A_1^2 \sum_{n=0}^{N-1} e^{i \Delta k z_n} \cdot \left( - \Lambda_0 \frac{2}{m \pi} \sin(m \pi D_n) \right)$$
 $$\sum_{n=0}^{N-1} (\dots) \Lambda_0 \xrightarrow{\Lambda_0 \to 0} \int_0^L (\dots) dz$$
-$$A_2(L) \approx i \kappa_{\text{mat}} A_1^2 \int_0^L \frac{2}{m \pi} \sin(m \pi D(z)) e^{i \Delta k z} dz$$
+$$A_2(L) \approx i \kappa_{\text{mat}} A_1^2 \int_0^L \left[ - \frac{2}{m \pi} \sin(m \pi D(z)) \right] e^{i \Delta k z} dz$$
 
 # 6. Effective Nonlinearity
 Comparison to generic integral:
@@ -60,5 +62,5 @@ A_2(L) = i A_1^2 \int_0^L \kappa_{\text{eff}}(z) e^{i \Delta k z} dz
 $$
 Result:
 $$
-\kappa_{\text{eff}}(z) = \kappa_{\text{mat}} \frac{2}{m \pi} \sin(m \pi D(z))
+\kappa_{\text{eff}}(z) = - \kappa_{\text{mat}} \frac{2}{m \pi} \sin(m \pi D(z))
 $$

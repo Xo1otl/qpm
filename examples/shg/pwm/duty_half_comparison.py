@@ -42,7 +42,7 @@ def main() -> None:
         DomainConfig(
             name="3-Region (Center-Anchored)",
             widths=jnp.array([0.25, 0.5, 0.25]) * Lp,
-            signs=jnp.array([-1.0, 1.0, -1.0]),
+            signs=jnp.array([1.0, -1.0, 1.0]),
         ),
     ]
 

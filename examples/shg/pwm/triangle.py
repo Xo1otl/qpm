@@ -84,8 +84,8 @@ def construct_geometry_3d(d_n: jnp.ndarray, sign_profile: jnp.ndarray, Lp: float
     # Interleave [Gap, Pulse, Gap]
     widths_3d = jnp.column_stack((gap_widths, pulse_widths, gap_widths)).ravel()
 
-    # Polarity pattern: (-, +, -) * sign_profile
-    base_signs = jnp.tile(jnp.array([-1.0, 1.0, -1.0]), num_periods)
+    # Polarity pattern: (-, +, -) * sign_profile -> Inverted to (+, -, +) for [Gap(+), Pulse(-), Gap(+)]
+    base_signs = jnp.tile(jnp.array([1.0, -1.0, 1.0]), num_periods)
     period_signs = jnp.repeat(sign_profile, 3)
     kappas_3d = kappa_mag * base_signs * period_signs
 
