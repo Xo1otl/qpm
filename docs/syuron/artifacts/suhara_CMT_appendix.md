@@ -8,4 +8,4 @@ $$\frac{d}{dz} A^{2\omega}(z) = -j \kappa [A^\omega(z)]^2 \exp \{+j(2\Delta)z \}
 
 $$2\Delta = \beta^{2\omega} - 2\beta^\omega \quad (2.60)$$
 
-$$\kappa = \frac{2\omega}{4} \iint [E^{2\omega}(x,y)]^* \mathbf{d}(x,y) [E^\omega(x,y)]^2 dxdy . \quad (2.61)$$
+$$\kappa = \frac{2\omega\epsilon}{4} \iint [E^{2\omega}(x,y)]^* \mathbf{d}(x,y) [E^\omega(x,y)]^2 dxdy . \quad (2.61)$$
