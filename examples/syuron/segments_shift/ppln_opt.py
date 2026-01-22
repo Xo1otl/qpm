@@ -34,9 +34,9 @@ def get_default_config() -> SimConfig:
     return SimConfig(
         grating_period=3.23,
         kappa=1.0e-5,
-        target_flat_range=(1.9440, 1.9465),
-        target_normalized_intensity=0.2,
-        default_iterations=100,
+        target_flat_range=(1.9446, 1.9459),
+        target_normalized_intensity=0.26,
+        default_iterations=300,
         b_initial=jnp.array([1.0, 0.0, 0.0], dtype=jnp.complex64),
         delta_k2=jnp.array(50.0),
     )
@@ -91,7 +91,7 @@ def load_checkpoint(filename):
     return data["params"], data["opt_state"]
 
 
-def make_optimization_step(optimizer, dk_targets, kappa_vals, delta_k2, b_initial, max_intensity_ref, target_norm_intensity, iterations):
+def make_optimization_step(optimizer, dk_targets, kappa_vals, b_initial, max_intensity_ref, target_norm_intensity, iterations):
     """Creates the optimization scan function using Amplitude-based MSE."""
 
     # Pre-calculate amplitude targets to avoid re-computing every step
@@ -99,21 +99,26 @@ def make_optimization_step(optimizer, dk_targets, kappa_vals, delta_k2, b_initia
     max_amp_ref = jnp.sqrt(max_intensity_ref)
     target_amp_norm = jnp.sqrt(target_norm_intensity)
 
-    # vmap definition: returns (Batch, 3)
-    batch_sim = jax.vmap(cwes2.simulate_twm, in_axes=(None, None, None, 0, None, None))
+    # vmap definition:
+    # simulate_shg_npda args: (domain_widths, kappa_vals, delta_k, b_initial)
+    # Map over delta_k (arg index 2)
+    batch_sim = jax.vmap(cwes2.simulate_shg_npda, in_axes=(None, None, 0, None))
+
+    # Use the fundamental amplitude from the vector
+    b_fund = b_initial[0]
 
     def loss_fn(params_widths):
         # Enforce absolute value on widths during simulation
         real_widths = jnp.abs(params_widths)
 
-        # Get (Batch, 3) results
-        b_batch = batch_sim(real_widths, kappa_vals, kappa_vals, dk_targets, delta_k2, b_initial)
+        # Get SHG amplitudes for all target delta_ks
+        shg_amps_complex = batch_sim(real_widths, kappa_vals, dk_targets, b_fund)
 
-        # Extract Component 1 (Signal/SHG) -> (Batch,)
-        amps = b_batch[:, 1]
+        # Calculate magnitude
+        amps = jnp.abs(shg_amps_complex)
 
         # Normalize Amplitude
-        norm_amp = jnp.abs(amps) / max_amp_ref
+        norm_amp = amps / max_amp_ref
 
         # Calculate MSE on Amplitudes (Linear dependence creates better gradients)
         return jnp.mean((norm_amp - target_amp_norm) ** 2)
@@ -197,12 +202,14 @@ def main():
 
     # --- Normalization: Find Max from Uniform Distribution ---
     print("Calculating reference maximum intensity...")
-    batch_sim = jax.vmap(cwes2.simulate_twm, in_axes=(None, None, None, 0, None, None))
+    # simulate_shg_npda map over delta_k (index 2)
+    batch_sim = jax.vmap(cwes2.simulate_shg_npda, in_axes=(None, None, 0, None))
     dk_ref_scan = jnp.linspace(dk_center * 0.99, dk_center * 1.01, 500)
 
     # Note: Use uniform_kappas for the reference simulation
-    ref_b_batch_scan = batch_sim(uniform_widths, uniform_kappas, uniform_kappas, dk_ref_scan, cfg.delta_k2, cfg.b_initial)
-    max_intensity = jnp.max(jnp.abs(ref_b_batch_scan[:, 1]) ** 2)
+    b_fund = cfg.b_initial[0]
+    ref_amps = batch_sim(uniform_widths, uniform_kappas, dk_ref_scan, b_fund)
+    max_intensity = jnp.max(jnp.abs(ref_amps) ** 2)
     print(f"Max Intensity (Reference): {max_intensity:.4e}")
 
     # --- Optimizer Init ---
@@ -230,7 +237,6 @@ def main():
         optimizer,
         dk_targets,
         kappa_vals,
-        cfg.delta_k2,
         cfg.b_initial,
         max_intensity,
         cfg.target_normalized_intensity,
@@ -252,12 +258,12 @@ def main():
     dk_scan = jnp.linspace(dk_center * 0.999, dk_center * 1.001, 1000)
 
     # Reference Spectrum
-    ref_b_batch = batch_sim(uniform_widths, uniform_kappas, uniform_kappas, dk_scan, cfg.delta_k2, cfg.b_initial)
-    ref_int = (jnp.abs(ref_b_batch[:, 1]) ** 2) / max_intensity
+    ref_amps_out = batch_sim(uniform_widths, uniform_kappas, dk_scan, b_fund)
+    ref_int = (jnp.abs(ref_amps_out) ** 2) / max_intensity
 
     # Optimized Spectrum
-    opt_b_batch = batch_sim(final_params_abs, kappa_vals, kappa_vals, dk_scan, cfg.delta_k2, cfg.b_initial)
-    opt_int = (jnp.abs(opt_b_batch[:, 1]) ** 2) / max_intensity
+    opt_amps_out = batch_sim(final_params_abs, kappa_vals, dk_scan, b_fund)
+    opt_int = (jnp.abs(opt_amps_out) ** 2) / max_intensity
 
     plot_results(dk_scan, ref_int, opt_int, loss_hist, cfg.target_flat_range, cfg.target_normalized_intensity)
     print("Done.")

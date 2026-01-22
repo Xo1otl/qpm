@@ -81,22 +81,23 @@ def load_optimized_widths(filepath: str) -> jax.Array:
 @jax.jit
 def get_spectrum(widths, kappas, dk_scan):
     """
-    Simulate TWM for a range of delta_k values.
+    Simulate SHG for a range of delta_k values using NPDA.
     Returns intensity |A_sh|^2.
     """
     # Create batch simulation function
-    # simulate_twm args: (domain_widths, n_vals, chi_vals, delta_k, delta_k2, b_input)
-    # We map over delta_k (arg index 3)
-    batch_sim = jax.vmap(cwes2.simulate_twm, in_axes=(None, None, None, 0, None, None))
+    # simulate_shg_npda args: (domain_widths, kappa_vals, delta_k, b_initial)
+    # We map over delta_k (arg index 2)
+    batch_sim = jax.vmap(cwes2.simulate_shg_npda, in_axes=(None, None, 0, None))
 
     # Ensure widths are positive (optimization might explore negative, but physics is abs)
     real_widths = jnp.abs(widths)
 
     # Run simulation
-    b_batch = batch_sim(real_widths, kappas, kappas, dk_scan, DELTA_K2, B_INITIAL)
+    # Pass B_INITIAL[0] as the fundamental amplitude
+    shg_amplitudes = batch_sim(real_widths, kappas, dk_scan, B_INITIAL[0])
 
-    # Extract SHG (index 1), calculate intensity
-    return jnp.abs(b_batch[:, 1]) ** 2
+    # Calculate intensity
+    return jnp.abs(shg_amplitudes) ** 2
 
 
 def calculate_fw95m(x: jax.Array, y: jax.Array) -> float:
@@ -198,11 +199,11 @@ def main():
     max_norm_opt = jnp.max(int_opt) / max_ppln
 
     # Normalize by PPLN max
-    plt.plot(dk_scan, int_ppln / max_ppln, "k--", alpha=0.5, label=f"PPLN (Uniform) (L={len_ppln:.1f}µm, BW={bw_ppln:.4f}, Max={max_norm_ppln:.2f})")
+    plt.plot(dk_scan, int_ppln / max_ppln, "k--", alpha=0.5, label=f"PPLN (Uniform) (L={len_ppln:.1f}µm, BW={bw_ppln:.6f}, Max={max_norm_ppln:.3f})")
     plt.plot(
-        dk_scan, int_3seg / max_ppln, "g-.", alpha=0.7, label=f"3-Segment (Init) (L={len_3seg:.1f}µm, BW={bw_3seg:.4f}, Max={max_norm_3seg:.2f})"
+        dk_scan, int_3seg / max_ppln, "g-.", alpha=0.7, label=f"3-Segment (Init) (L={len_3seg:.1f}µm, BW={bw_3seg:.6f}, Max={max_norm_3seg:.3f})"
     )
-    plt.plot(dk_scan, int_opt / max_ppln, "b-", linewidth=2, label=f"Optimized (L={len_opt:.1f}µm, BW={bw_opt:.4f}, Max={max_norm_opt:.2f})")
+    plt.plot(dk_scan, int_opt / max_ppln, "b-", linewidth=2, label=f"Optimized (L={len_opt:.1f}µm, BW={bw_opt:.6f}, Max={max_norm_opt:.3f})")
 
     # Target Range Box
     plt.axvspan(TARGET_FLAT_RANGE[0], TARGET_FLAT_RANGE[1], color="orange", alpha=0.1, label="Target Range")
