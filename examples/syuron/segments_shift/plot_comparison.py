@@ -99,6 +99,27 @@ def get_spectrum(widths, kappas, dk_scan):
     return jnp.abs(b_batch[:, 1]) ** 2
 
 
+def calculate_fw95m(x: jax.Array, y: jax.Array) -> float:
+    """
+    Calculate the full width at 95% of the maximum intensity.
+    Returns width in same units as x.
+    """
+    max_val = jnp.max(y)
+    threshold = 0.95 * max_val
+
+    # Indices where y >= threshold
+    # jnp.where returns a tuple of arrays, we take the first dimension
+    valid_indices = jnp.where(y >= threshold)[0]
+
+    if valid_indices.size == 0:
+        return 0.0
+
+    x_start = x[valid_indices[0]]
+    x_end = x[valid_indices[-1]]
+
+    return float(x_end - x_start)
+
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -157,14 +178,31 @@ def main():
     # Optimized Intensity
     int_opt = get_spectrum(widths_opt, kappas_structure, dk_scan)
 
+    # Calculate 95% Widths
+    bw_ppln = calculate_fw95m(dk_scan, int_ppln)
+    bw_3seg = calculate_fw95m(dk_scan, int_3seg)
+    bw_opt = calculate_fw95m(dk_scan, int_opt)
+
+    print("\n95% Bandwidth Analysis:")
+    print(f"  PPLN:      {bw_ppln:.6f} rad/µm")
+    print(f"  3-Segment: {bw_3seg:.6f} rad/µm")
+    print(f"  Optimized: {bw_opt:.6f} rad/µm")
+
     # 4. Plot
     print("\nPlotting...")
     plt.figure(figsize=(12, 7))
 
+    # Calculate Max Normalized Intensities
+    max_norm_ppln = jnp.max(int_ppln) / max_ppln
+    max_norm_3seg = jnp.max(int_3seg) / max_ppln
+    max_norm_opt = jnp.max(int_opt) / max_ppln
+
     # Normalize by PPLN max
-    plt.plot(dk_scan, int_ppln / max_ppln, "k--", alpha=0.5, label=f"PPLN (Uniform) (L={len_ppln:.1f}µm)")
-    plt.plot(dk_scan, int_3seg / max_ppln, "g-.", alpha=0.7, label=f"3-Segment (Init) (L={len_3seg:.1f}µm)")
-    plt.plot(dk_scan, int_opt / max_ppln, "b-", linewidth=2, label=f"Optimized (L={len_opt:.1f}µm)")
+    plt.plot(dk_scan, int_ppln / max_ppln, "k--", alpha=0.5, label=f"PPLN (Uniform) (L={len_ppln:.1f}µm, BW={bw_ppln:.4f}, Max={max_norm_ppln:.2f})")
+    plt.plot(
+        dk_scan, int_3seg / max_ppln, "g-.", alpha=0.7, label=f"3-Segment (Init) (L={len_3seg:.1f}µm, BW={bw_3seg:.4f}, Max={max_norm_3seg:.2f})"
+    )
+    plt.plot(dk_scan, int_opt / max_ppln, "b-", linewidth=2, label=f"Optimized (L={len_opt:.1f}µm, BW={bw_opt:.4f}, Max={max_norm_opt:.2f})")
 
     # Target Range Box
     plt.axvspan(TARGET_FLAT_RANGE[0], TARGET_FLAT_RANGE[1], color="orange", alpha=0.1, label="Target Range")
