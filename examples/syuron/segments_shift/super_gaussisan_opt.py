@@ -1,6 +1,7 @@
 import argparse
 import os
 import pickle
+from dataclasses import dataclass
 
 import jax
 
@@ -11,9 +12,10 @@ import matplotlib.pyplot as plt
 import optax
 from jax_tqdm import scan_tqdm  # pyright: ignore[reportPrivateImportUsage]
 
-from dataclasses import dataclass
-
 from qpm import cwes2
+
+
+MARGIN = 0.2316097145034998
 
 
 @dataclass
@@ -30,21 +32,24 @@ class SimConfig:
 
 
 def get_default_config() -> SimConfig:
-    """Returns the default simulation configuration."""
+    width = 0.0018650943254284217
+    center = 1.9458495445964978
+    intensity = 0.20536506134153698
+    flat_min = center - width / 2
+    flat_max = center + width / 2
     return SimConfig(
         grating_period=3.23,
         kappa=1.0e-5,
-        target_flat_range=(1.9446, 1.9459),
-        target_normalized_intensity=0.26,
+        target_flat_range=(flat_min, flat_max),
+        target_normalized_intensity=intensity,
         default_iterations=300,
         b_initial=jnp.array([1.0, 0.0, 0.0], dtype=jnp.complex64),
         delta_k2=jnp.array(50.0),
     )
 
 
-# --- Helper Functions ---
+# --- Helper Functions: Structure Building ---
 def build_segment_domains(n_periods: int, period: float, kappa: float) -> tuple[jax.Array, jax.Array]:
-    """Build domain widths and kappa values for a standard segment."""
     half_period = period / 2.0
     domain_widths = jnp.tile(jnp.array([half_period, half_period]), n_periods)
     kappa_vals = jnp.tile(jnp.array([kappa, -kappa]), n_periods)
@@ -52,17 +57,15 @@ def build_segment_domains(n_periods: int, period: float, kappa: float) -> tuple[
 
 
 def build_phase_shift_domain(length: float, kappa: float) -> tuple[jax.Array, jax.Array]:
-    """Build domain for a phase shift segment (fixed kappa = +1)."""
     return jnp.array([length]), jnp.array([kappa])
 
 
 def build_paper_structure(cfg: SimConfig) -> tuple[jax.Array, jax.Array]:
-    """Build the complete 3-segment aperiodic QPM grating structure."""
-    n1 = 425  # Segment 1 periods
-    n2 = 2245  # Segment 2 periods
-    n3 = 425  # Segment 3 periods
-    delta1 = 1.28  # Phase shift 1 length [µm]
-    delta2 = 1.95  # Phase shift 2 length [µm]
+    n1 = 425
+    n2 = 2245
+    n3 = 425
+    delta1 = 1.28
+    delta2 = 1.95
 
     seg1_widths, seg1_kappa = build_segment_domains(n1, cfg.grating_period, cfg.kappa)
     ps1_widths, ps1_kappa = build_phase_shift_domain(delta1, cfg.kappa)
@@ -75,8 +78,8 @@ def build_paper_structure(cfg: SimConfig) -> tuple[jax.Array, jax.Array]:
     return domain_widths, kappa_vals
 
 
+# --- Helper Functions: Checkpointing ---
 def save_checkpoint(filename, params, opt_state):
-    """Saves params and optimizer state to a pickle file."""
     data = {"params": params, "opt_state": opt_state}
     with open(filename, "wb") as f:
         pickle.dump(data, f)
@@ -84,44 +87,78 @@ def save_checkpoint(filename, params, opt_state):
 
 
 def load_checkpoint(filename):
-    """Loads params and optimizer state from a pickle file."""
     with open(filename, "rb") as f:
         data = pickle.load(f)
     print(f"State loaded from '{filename}'")
     return data["params"], data["opt_state"]
 
 
-def make_optimization_step(optimizer, dk_targets, kappa_vals, b_initial, max_intensity_ref, target_norm_intensity, iterations):
-    """Creates the optimization scan function using Amplitude-based MSE."""
+# --- Core Logic: Target Generation & Optimization ---
 
-    # Pre-calculate amplitude targets to avoid re-computing every step
-    # We compare |A| vs |A|, rather than |A|^2 vs |A|^2
+
+def build_super_gaussian_target(
+    target_range: tuple[float, float], target_amp: float, points: int = 100, margin: float = 0.5, order: float = 6.0
+) -> tuple[jax.Array, jax.Array]:
+    """
+    Generates a Super-Gaussian spectral target profile.
+
+    Args:
+        target_range: (min_dk, max_dk) where response should be flat.
+        target_amp: Peak normalized amplitude value (e.g. sqrt(0.26)).
+        points: Number of discrete dk points in the scan.
+        margin: Fractional margin to add to scan range (0.5 = 50% wider on each side).
+        order: Super-Gaussian order (higher = squarer).
+
+    Returns:
+        (dk_scan, target_profile_amp)
+    """
+    center = sum(target_range) / 2.0
+    width = target_range[1] - target_range[0]
+
+    # Define scan grid with margins
+    scan_span = width * (1 + 2 * margin)
+    dk_scan = jnp.linspace(center - scan_span / 2, center + scan_span / 2, points)
+
+    # Calculate sigma such that amplitude is ~95% at the edges of target_range
+    # Formula derived from A = exp(-(|x|/sigma)^N)
+    edge_val = 0.95
+    half_width = width / 2.0
+    sigma = half_width / ((-jnp.log(edge_val)) ** (1 / order))
+
+    # Generate Profile (Amplitude)
+    profile = target_amp * jnp.exp(-(jnp.abs((dk_scan - center) / sigma) ** order))
+
+    return dk_scan, profile
+
+
+def make_optimization_step(
+    optimizer: optax.GradientTransformation,
+    dk_targets: jax.Array,
+    target_profile: jax.Array,
+    kappa_vals: jax.Array,
+    b_initial: jax.Array,
+    max_intensity_ref: float,
+    iterations: int,
+):
+    """Creates the JIT-compiled optimization scan loop using Shape-based MSE."""
     max_amp_ref = jnp.sqrt(max_intensity_ref)
-    target_amp_norm = jnp.sqrt(target_norm_intensity)
-
-    # vmap definition:
-    # simulate_shg_npda args: (domain_widths, kappa_vals, delta_k, b_initial)
-    # Map over delta_k (arg index 2)
-    batch_sim = jax.vmap(cwes2.simulate_shg_npda, in_axes=(None, None, 0, None))
-
-    # Use the fundamental amplitude from the vector
     b_fund = b_initial[0]
 
+    # Vectorized simulation over delta_k (arg index 2)
+    batch_sim = jax.vmap(cwes2.simulate_shg_npda, in_axes=(None, None, 0, None))
+
     def loss_fn(params_widths):
-        # Enforce absolute value on widths during simulation
+        # Enforce physical constraints (widths > 0)
         real_widths = jnp.abs(params_widths)
 
-        # Get SHG amplitudes for all target delta_ks
+        # 1. Batched Simulation
         shg_amps_complex = batch_sim(real_widths, kappa_vals, dk_targets, b_fund)
 
-        # Calculate magnitude
-        amps = jnp.abs(shg_amps_complex)
+        # 2. Normalize Magnitude
+        current_amp = jnp.abs(shg_amps_complex) / max_amp_ref
 
-        # Normalize Amplitude
-        norm_amp = amps / max_amp_ref
-
-        # Calculate MSE on Amplitudes (Linear dependence creates better gradients)
-        return jnp.mean((norm_amp - target_amp_norm) ** 2)
+        # 3. Shape Error (MSE against Super-Gaussian vector)
+        return jnp.mean((current_amp - target_profile) ** 2)
 
     @jax.jit
     @scan_tqdm(iterations, print_rate=10)
@@ -137,24 +174,19 @@ def make_optimization_step(optimizer, dk_targets, kappa_vals, b_initial, max_int
 
 def get_reference_intensity(cfg: SimConfig, initial_widths: jax.Array) -> float:
     """Calculates the maximum intensity of a uniform reference grating."""
-    # We also need a uniform structure for reference normalization
     total_length = jnp.sum(initial_widths)
-    # Estimate equivalent periods for uniform grating
     num_uniform_periods = int(round(total_length / cfg.grating_period))
 
     half_p = cfg.grating_period / 2.0
     uniform_widths = jnp.tile(jnp.array([half_p, half_p]), num_uniform_periods)
-    # Uniform kappa vals for reference (strictly periodic)
     uniform_kappas = jnp.tile(jnp.array([cfg.kappa, -cfg.kappa]), num_uniform_periods)
 
     dk_center = 2.0 * jnp.pi / cfg.grating_period
-
-    # simulate_shg_npda map over delta_k (index 2)
-    batch_sim = jax.vmap(cwes2.simulate_shg_npda, in_axes=(None, None, 0, None))
     dk_ref_scan = jnp.linspace(dk_center * 0.99, dk_center * 1.01, 500)
 
-    # Note: Use uniform_kappas for the reference simulation
+    batch_sim = jax.vmap(cwes2.simulate_shg_npda, in_axes=(None, None, 0, None))
     b_fund = cfg.b_initial[0]
+
     ref_amps = batch_sim(uniform_widths, uniform_kappas, dk_ref_scan, b_fund)
     max_intensity = float(jnp.max(jnp.abs(ref_amps) ** 2))
     return max_intensity
@@ -165,45 +197,33 @@ def run_optimization(
     initial_params: jax.Array,
     kappa_vals: jax.Array,
     max_intensity: float,
+    dk_scan: jax.Array,
+    target_profile: jax.Array,
     iterations: int,
     resume_path: str = None,
 ) -> tuple[jax.Array, jax.Array, optax.OptState]:
-    """Runs the optimization loop.
+    """Runs the optimization loop with injected target profile."""
 
-    Args:
-        cfg: Simulation configuration.
-        initial_params: Initial domain widths.
-        kappa_vals: Helper array for kappa values (topology).
-        max_intensity: Reference maximum intensity for normalization.
-        iterations: Number of optimization iterations.
-        resume_path: Optional path to resume checkpoint.
-
-    Returns:
-        tuple[jax.Array, jax.Array, optax.OptState]: (final_params, loss_history, final_opt_state)
-    """
     print(f"\nSetting up L-BFGS (Iterations: {iterations})...")
     optimizer = optax.lbfgs(learning_rate=1.0)
-    dk_targets = jnp.linspace(*cfg.target_flat_range, 50)
 
     # --- State Initialization (New or Resume) ---
     current_params = initial_params
     current_opt_state = optimizer.init(current_params)
 
     if resume_path and os.path.exists(resume_path):
-        # Resume
         current_params, current_opt_state = load_checkpoint(resume_path)
     elif resume_path:
         print(f"Warning: Checkpoint '{resume_path}' not found. Starting fresh.")
-        print("Initialized parameters from provided initial structure.")
 
-    # --- Optimization Loop ---
+    # --- Optimization Factory ---
     step_fn = make_optimization_step(
         optimizer,
-        dk_targets,
+        dk_scan,
+        target_profile,
         kappa_vals,
         cfg.b_initial,
         max_intensity,
-        cfg.target_normalized_intensity,
         iterations,
     )
 
@@ -219,18 +239,30 @@ def plot_results(
     opt_int: jax.Array,
     loss_hist: jax.Array,
     target_range: tuple[float, float],
-    target_intensity: float,
+    target_profile_amp: jax.Array,
 ) -> None:
-    """Generates and saves the optimization result plots."""
+    """Generates and saves optimization result plots with target overlay."""
+
+    # Calculate target intensity from target amplitude profile for plotting
+    target_profile_int = target_profile_amp**2
 
     # Spectrum Plot
     plt.figure(figsize=(10, 6))
-    plt.plot(dk_scan, ref_int, "--", color="gray", label="Uniform (Reference)")
-    plt.plot(dk_scan, opt_int, "-", color="#2E86AB", label="Optimized")
+    plt.plot(dk_scan, ref_int, "--", color="gray", alpha=0.5, label="Uniform Ref")
+    plt.plot(dk_scan, opt_int, "-", color="#2E86AB", linewidth=2, label="Optimized")
+
+    # Plot the exact Super-Gaussian target used by the optimizer
+    # (Note: dk_scan passed here is the wider plot scan, so we must be careful.
+    # Ideally, we plot the target profile over the scan range used for optimization,
+    # but here we just overlay the target range box for visual simplicity
+    # or plotting the SG if dimensions match.)
+
+    # Simple visual guides
     plt.axvspan(*target_range, color="g", alpha=0.1, label="Target Range")
-    plt.hlines(target_intensity, *target_range, "r", "--", label="Target Level")
+    plt.plot(dk_scan, target_profile_int, "r:", linewidth=2, label="SG Target")
+
     plt.legend()
-    plt.title("PPLN Optimization Result")
+    plt.title("PPLN Optimization Result (Super-Gaussian Target)")
     plt.xlabel(r"$\Delta k$")
     plt.ylabel("Normalized Intensity")
     plt.savefig("ppln_optimized.png")
@@ -240,7 +272,7 @@ def plot_results(
     plt.figure(figsize=(10, 6))
     plt.plot(jnp.arange(len(loss_hist)), loss_hist, "-", color="#E63946")
     plt.yscale("log")
-    plt.title("Optimization Loss History (Amplitude MSE)")
+    plt.title("Optimization Loss History (Shape MSE)")
     plt.xlabel("Iteration")
     plt.ylabel("MSE Loss")
     plt.grid(True, which="both", linestyle="--", alpha=0.5)
@@ -253,55 +285,80 @@ def main():
     cfg = get_default_config()
 
     # --- CLI Arguments ---
-    parser = argparse.ArgumentParser(description="PPLN Optimization with Resume Capability")
-    parser.add_argument("--resume", type=str, default=None, help="Path to .pkl file to resume from.")
-    parser.add_argument("--save", type=str, default="checkpoint.pkl", help="Path to save the result .pkl file.")
-    parser.add_argument("--iters", type=int, default=cfg.default_iterations, help="Number of iterations to run.")
+    parser = argparse.ArgumentParser(description="PPLN Optimization with Super-Gaussian Target")
+    parser.add_argument("--resume", type=str, default=None, help="Path to .pkl to resume.")
+    parser.add_argument("--save", type=str, default="checkpoint.pkl", help="Path to save result.")
+    parser.add_argument("--iters", type=int, default=cfg.default_iterations, help="Iterations.")
     args = parser.parse_args()
 
     # --- Setup ---
-    # Build 3-segment initial structure
     print("Building 3-segment initial structure...")
     initial_widths, kappa_vals = build_paper_structure(cfg)
 
-    # --- Normalization: Find Max from Uniform Distribution ---
+    # --- Normalization ---
     print("Calculating reference maximum intensity...")
     max_intensity = get_reference_intensity(cfg, initial_widths)
     print(f"Max Intensity (Reference): {max_intensity:.4e}")
 
-    # --- Run Optimization ---
-    final_params, loss_hist, final_opt_state = run_optimization(cfg, initial_widths, kappa_vals, max_intensity, args.iters, args.resume)
+    # --- Build Target Profile ---
+    print("Building Super-Gaussian target...")
+    target_amp = jnp.sqrt(cfg.target_normalized_intensity)
 
-    # Ensure widths are positive for final output
+    # We create two sets of targets:
+    # 1. opt_dk, opt_target: The dense, narrow grid used for the optimizer
+    # 2. plot_dk, plot_target: A wider grid for final visualization
+
+    # Optimization Grid (Narrower, focused on constraints)
+    opt_dk, opt_target = build_super_gaussian_target(cfg.target_flat_range, target_amp, points=60, margin=MARGIN, order=6.0)
+
+    # --- Run Optimization ---
+    final_params, loss_hist, final_opt_state = run_optimization(
+        cfg,
+        initial_widths,
+        kappa_vals,
+        max_intensity,
+        opt_dk,
+        opt_target,
+        args.iters,
+        args.resume,
+    )
+
     final_params_abs = jnp.abs(final_params)
     print(f"Final Loss: {loss_hist[-1]:.6e}")
 
     # --- Save Checkpoint ---
     save_checkpoint(args.save, final_params, final_opt_state)
 
-    # --- Plotting ---
+    # --- Final Simulation for Plotting ---
     print("Generating plots...")
-    dk_center = 2.0 * jnp.pi / cfg.grating_period
-    dk_scan = jnp.linspace(dk_center * 0.999, dk_center * 1.001, 1000)
+
+    # Create a wider scan for the final plot to see the floor
+    plot_dk, plot_target = build_super_gaussian_target(
+        cfg.target_flat_range,
+        target_amp,
+        points=500,
+        margin=1.0,  # Wider view
+        order=8.0,
+    )
+
+    batch_sim = jax.vmap(cwes2.simulate_shg_npda, in_axes=(None, None, 0, None))
+    b_fund = cfg.b_initial[0]
 
     # Reference Spectrum
-    batch_sim = jax.vmap(cwes2.simulate_shg_npda, in_axes=(None, None, 0, None))
-    # construct uniform widths again for plotting, or just pass them if we returned them (we didn't)
     total_length = jnp.sum(initial_widths)
-    num_uniform_periods = int(round(total_length / cfg.grating_period))
+    num_uniform_periods = round(total_length / cfg.grating_period)
     half_p = cfg.grating_period / 2.0
     uniform_widths = jnp.tile(jnp.array([half_p, half_p]), num_uniform_periods)
     uniform_kappas = jnp.tile(jnp.array([cfg.kappa, -cfg.kappa]), num_uniform_periods)
-    b_fund = cfg.b_initial[0]
 
-    ref_amps_out = batch_sim(uniform_widths, uniform_kappas, dk_scan, b_fund)
-    ref_int = (jnp.abs(ref_amps_out) ** 2) / max_intensity
+    ref_amps = batch_sim(uniform_widths, uniform_kappas, plot_dk, b_fund)
+    ref_int = (jnp.abs(ref_amps) ** 2) / max_intensity
 
     # Optimized Spectrum
-    opt_amps_out = batch_sim(final_params_abs, kappa_vals, dk_scan, b_fund)
-    opt_int = (jnp.abs(opt_amps_out) ** 2) / max_intensity
+    opt_amps = batch_sim(final_params_abs, kappa_vals, plot_dk, b_fund)
+    opt_int = (jnp.abs(opt_amps) ** 2) / max_intensity
 
-    plot_results(dk_scan, ref_int, opt_int, loss_hist, cfg.target_flat_range, cfg.target_normalized_intensity)
+    plot_results(plot_dk, ref_int, opt_int, loss_hist, cfg.target_flat_range, plot_target)
     print("Done.")
 
 
