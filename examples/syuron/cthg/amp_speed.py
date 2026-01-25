@@ -39,8 +39,8 @@ def setup_structure(config: SimulationConfig) -> SimulationStructure:
     dk_shg = mgoslt.calc_twm_delta_k(config.wavelength, config.wavelength, config.temperature)
     dk_sfg = mgoslt.calc_twm_delta_k(config.wavelength, config.wavelength / 2, config.temperature)
 
-    lc_shg = jnp.abs(jnp.pi / dk_shg)
-    lc_sfg = jnp.abs(jnp.pi / dk_sfg)
+    lc_shg = jnp.pi / dk_shg
+    lc_sfg = jnp.pi / dk_sfg
 
     n_shg = int(config.shg_len / lc_shg)
     widths_shg = jnp.full(n_shg, lc_shg)
