@@ -4,7 +4,6 @@ from typing import Any
 
 import jax
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy.integrate import solve_ivp
 
@@ -19,6 +18,7 @@ class SimulationConfig:
     temperature: float = 70.0
     wavelength: float = 1.064
     input_power: float = 10.0
+    block_size: int = 25
 
 
 @dataclass
@@ -30,6 +30,7 @@ class SimulationStructure:
     dk_sfg: jax.Array
     p_in: jax.Array
     z_coords: jax.Array
+    block_size: int
 
 
 def setup_structure(config: SimulationConfig) -> SimulationStructure:
@@ -65,28 +66,51 @@ def setup_structure(config: SimulationConfig) -> SimulationStructure:
         dk_sfg=dk_sfg,
         p_in=p_in,
         z_coords=z_coords,
+        block_size=config.block_size,
     )
 
 
 def run_perturbation(struct: SimulationStructure) -> tuple[jax.Array, float]:
-    start_time = time.time()
-    _, trace = cwes2.simulate_twm_with_trace(
+    print("Warming up JIT...")
+    cwes2.simulate_super_step(
         struct.domain_widths,
         struct.kappa_shg_vals,
         struct.kappa_sfg_vals,
         struct.dk_shg,
         struct.dk_sfg,
         struct.p_in,
+        struct.block_size,
+    ).block_until_ready()
+    print("Warmup complete.")
+    start_time = time.time()
+    b_final = cwes2.simulate_super_step(
+        struct.domain_widths,
+        struct.kappa_shg_vals,
+        struct.kappa_sfg_vals,
+        struct.dk_shg,
+        struct.dk_sfg,
+        struct.p_in,
+        struct.block_size,
     )
-    trace.block_until_ready()
+    b_final.block_until_ready()
     end_time = time.time()
-    return trace, end_time - start_time
+    return b_final[2], end_time - start_time
 
 
 def run_npda(struct: SimulationStructure) -> tuple[jax.Array, float]:
+    print("Warming up JIT...")
+    cwes2.calc_a3_npda(
+        struct.p_in[0],
+        struct.kappa_shg_vals,
+        struct.kappa_sfg_vals,
+        struct.domain_widths,
+        struct.dk_shg,
+        struct.dk_sfg,
+    ).block_until_ready()
+    print("Warmup complete.")
     start_time = time.time()
     a1 = struct.p_in[0]
-    a3_trace = cwes2.calc_a3_npda_trace(
+    a3_final = cwes2.calc_a3_npda(
         a1,
         struct.kappa_shg_vals,
         struct.kappa_sfg_vals,
@@ -94,12 +118,17 @@ def run_npda(struct: SimulationStructure) -> tuple[jax.Array, float]:
         struct.dk_shg,
         struct.dk_sfg,
     )
-    a3_trace.block_until_ready()
+    a3_final.block_until_ready()
     end_time = time.time()
-    return a3_trace, end_time - start_time
+    return a3_final, end_time - start_time
 
 
-def run_scipy_ode(struct: SimulationStructure) -> tuple[np.ndarray, float]:
+def run_scipy_ode(
+    struct: SimulationStructure,
+    method: str = "RK45",
+    rtol: float = 1e-3,
+    atol: float = 1e-6,
+) -> tuple[np.ndarray, float]:
     # Convert JAX arrays to NumPy for SciPy solver
     z_coords = np.array(struct.z_coords)
     kappa_shg_vals = np.array(struct.kappa_shg_vals)
@@ -132,11 +161,13 @@ def run_scipy_ode(struct: SimulationStructure) -> tuple[np.ndarray, float]:
         odes,
         t_span=(z_coords[0], z_coords[-1]),
         y0=y0,
-        t_eval=z_coords,
-        method="RK45",
+        t_eval=[z_coords[-1]],  # Only evaluate at the end
+        method=method,
+        rtol=rtol,
+        atol=atol,
     )
 
-    a3_scipy = np.abs(sol.y[2])
+    a3_scipy = np.abs(sol.y[2][-1])
     end_time = time.time()
     return a3_scipy, end_time - start_time
 
@@ -147,61 +178,23 @@ def main() -> None:
 
     print(f"Structure setup complete. Num domains: {len(struct.domain_widths)}")
 
-    # Warmup (trigger JIT compilation)
-    print("Warming up JIT...")
-    cwes2.simulate_twm_with_trace(
-        struct.domain_widths,
-        struct.kappa_shg_vals,
-        struct.kappa_sfg_vals,
-        struct.dk_shg,
-        struct.dk_sfg,
-        struct.p_in,
-    )[1].block_until_ready()
-    cwes2.calc_a3_npda_trace(
-        struct.p_in[0],
-        struct.kappa_shg_vals,
-        struct.kappa_sfg_vals,
-        struct.domain_widths,
-        struct.dk_shg,
-        struct.dk_sfg,
-    ).block_until_ready()
-    print("Warmup complete.")
-
     # 1. Perturbation Simulation
-    trace_pert, time_pert = run_perturbation(struct)
-    a3_pert = jnp.abs(trace_pert[:, 2])
-    print(f"Perturbation simulation time: {time_pert:.6f} s")
+    a3_pert_val, time_pert = run_perturbation(struct)
+    a3_pert = jnp.abs(a3_pert_val)
+    print(f"Perturbation simulation time: {time_pert:.6f} s, |a3| = {a3_pert:.6e}")
 
     # 2. NPDA Simulation
-    trace_npda, time_npda = run_npda(struct)
-    a3_npda = jnp.abs(trace_npda)
-    print(f"NPDA calculation time:        {time_npda:.6f} s")
+    a3_npda_val, time_npda = run_npda(struct)
+    a3_npda = jnp.abs(a3_npda_val)
+    print(f"NPDA calculation time:        {time_npda:.6f} s, |a3| = {a3_npda:.6e}")
 
-    # 3. SciPy ODE Simulation
+    # 3. SciPy ODE Simulation (RK45)
     a3_scipy, time_scipy = run_scipy_ode(struct)
-    print(f"SciPy ODE calculation time:   {time_scipy:.6f} s")
+    print(f"SciPy ODE (RK45) time:        {time_scipy:.6f} s, |a3| = {a3_scipy:.6e}")
 
-    # Plotting
-    plt.figure(figsize=(10, 6))
-
-    # Plot Perturbation Result
-    plt.plot(struct.z_coords, a3_pert, label=r"$3\omega$ (Perturbation)", linewidth=2)
-
-    # Plot NPDA Result
-    plt.plot(struct.z_coords, a3_npda, label=r"$3\omega$ (UPA)", linestyle="--", linewidth=2)
-
-    # Plot SciPy Result
-    plt.plot(struct.z_coords, a3_scipy, label=r"$3\omega$ (SciPy)", linestyle=":", linewidth=2)
-
-    plt.xlabel(r"Position ($\mu m$)")
-    plt.ylabel("Amplitude")
-    plt.title(f"Comparison of $a_3$ Calculation\nPerturbation: {time_pert:.4f}s, NPDA: {time_npda:.4f}s, SciPy: {time_scipy:.4f}s")
-    plt.legend()
-    plt.grid(visible=True, linestyle=":")
-
-    output_filename = "amp_trace_comparison.png"
-    plt.savefig(output_filename)
-    print(f"Plot saved to {output_filename}")
+    # 4. SciPy ODE Simulation (Ground Truth)
+    a3_gt, time_gt = run_scipy_ode(struct, method="DOP853", rtol=1e-8, atol=1e-8)
+    print(f"SciPy ODE (DOP853/GT) time:   {time_gt:.6f} s, |a3| = {a3_gt:.6e}")
 
 
 if __name__ == "__main__":

@@ -87,9 +87,9 @@ def plot_verification_results(data: dict, output_filename: str = "verify_result.
     grid = FIXED_DK_GRID
 
     # Extract Data
-    ref_norm = data["spectrum_ref"]
-    init_norm = data["spectrum_initial"]
-    final_norm = data["spectrum_final"]
+    ref_norm = jnp.sqrt(data["spectrum_ref"])
+    init_norm = jnp.sqrt(data["spectrum_initial"])
+    final_norm = jnp.sqrt(data["spectrum_final"])
 
     init_widths = data["initial_widths"]
     final_widths = data["final_widths"]
@@ -103,25 +103,25 @@ def plot_verification_results(data: dict, output_filename: str = "verify_result.
 
     # Trace 1: Uniform
     # Note: Uniform length is approx same as initial, but we omit L here to keep it simple as it's a ref
-    label_ref = f"Uniform (W={m_ref['fw95']:.5f}, P={m_ref['peak']:.2f})"
+    label_ref = f"Uniform (W={m_ref['fw95']:.5f}, A={m_ref['peak']:.2f})"
     plt.plot(grid, ref_norm, ":", color="gray", alpha=0.5, label=label_ref)
 
     # Trace 2: Initial 3-Seg
-    label_init = f"Initial 3-Seg (L={m_init['length']:.1f}, W={m_init['fw95']:.5f}, P={m_init['peak']:.2f})"
+    label_init = f"Initial 3-Seg (L={m_init['length']:.1f}, W={m_init['fw95']:.5f}, A={m_init['peak']:.2f})"
     plt.plot(grid, init_norm, "--", color="green", alpha=0.6, label=label_init)
 
     # Initial FW95 Region
-    if m_init["region_end"] > m_init["region_start"]:
-        plt.axvspan(m_init["region_start"], m_init["region_end"], color="green", alpha=0.1, label="_nolegend_")
+    # if m_init["region_end"] > m_init["region_start"]:
+    #     plt.axvspan(m_init["region_start"], m_init["region_end"], color="green", alpha=0.1, label="_nolegend_")
 
     # Trace 3: Optimized
-    label_opt = f"Optimized (L={m_final['length']:.1f}, W={m_final['fw95']:.5f}, P={m_final['peak']:.2f})"
+    label_opt = f"Optimized (L={m_final['length']:.1f}, W={m_final['fw95']:.5f}, A={m_final['peak']:.2f})"
     plt.plot(grid, final_norm, "-", color="#2E86AB", linewidth=2, label=label_opt)
 
     plt.legend()
     plt.title("Optimization Verification")
     plt.xlabel(r"$\Delta k$")
-    plt.ylabel("Normalized Intensity")
+    plt.ylabel("Normalized Amplitude")
     plt.xlim(DK_START, DK_END)
     plt.grid(True, linestyle="--", alpha=0.3)
 

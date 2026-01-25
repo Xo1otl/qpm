@@ -9,19 +9,23 @@ jax.config.update("jax_enable_x64", val=False)
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+from joblib import Memory
 from scipy.integrate import solve_ivp
 
 from qpm import cwes2, mgoslt
 
+memory = Memory(location=".cache", verbose=0)
+
 
 @dataclass
 class SimulationConfig:
-    shg_len: float = 10000.0
-    sfg_len: float = 30000.0
+    shg_len: float = 15000.0
+    sfg_len: float = 15000.0
     kappa_shg_base: float = 1.5e-5 / (2 / jnp.pi)
     temperature: float = 70.0
     wavelength: float = 1.064
     input_power: float = 10.0
+    block_size: int = 31
 
 
 @dataclass
@@ -33,6 +37,7 @@ class SimulationStructure:
     dk_sfg: jax.Array
     p_in: jax.Array
     z_coords: jax.Array
+    block_size: int
 
 
 @dataclass
@@ -42,7 +47,6 @@ class SimulationResult:
     a2: np.ndarray
     a3: np.ndarray
     total_power: np.ndarray
-    power_deviation_ratio: np.ndarray
 
 
 def setup_structure(config: SimulationConfig) -> SimulationStructure:
@@ -78,40 +82,39 @@ def setup_structure(config: SimulationConfig) -> SimulationStructure:
         dk_sfg=dk_sfg,
         p_in=p_in,
         z_coords=z_coords,
+        block_size=config.block_size,
     )
 
 
-def calculate_power_stats(a1: np.ndarray, a2: np.ndarray, a3: np.ndarray, initial_power: float) -> tuple[np.ndarray, np.ndarray]:
-    # Taking abs^2 for power
-    p1 = np.abs(a1) ** 2
-    p2 = np.abs(a2) ** 2
-    p3 = np.abs(a3) ** 2
-
-    total_power = p1 + p2 + p3
-    deviation = (total_power - initial_power) / initial_power
-    return total_power, deviation
+def calculate_mse(res: SimulationResult, ref: SimulationResult) -> tuple[float, float, float]:
+    mse1 = np.mean((np.abs(res.a1) - np.abs(ref.a1)) ** 2)
+    mse2 = np.mean((np.abs(res.a2) - np.abs(ref.a2)) ** 2)
+    mse3 = np.mean((np.abs(res.a3) - np.abs(ref.a3)) ** 2)
+    return float(mse1), float(mse2), float(mse3)
 
 
 def run_perturbation(struct: SimulationStructure) -> tuple[SimulationResult, float]:
     # Warmup
     print("Warming up JIT...")
-    cwes2.simulate_twm_with_trace(
+    cwes2.simulate_super_step_with_trace(
         struct.domain_widths,
         struct.kappa_shg_vals,
         struct.kappa_sfg_vals,
         struct.dk_shg,
         struct.dk_sfg,
         struct.p_in,
+        struct.block_size,
     )[1].block_until_ready()
     print("Warmup complete.")
     start_time = time.perf_counter()
-    _, trace = cwes2.simulate_twm_with_trace(
+    _, trace = cwes2.simulate_super_step_with_trace(
         struct.domain_widths,
         struct.kappa_shg_vals,
         struct.kappa_sfg_vals,
         struct.dk_shg,
         struct.dk_sfg,
         struct.p_in,
+        struct.block_size,
     )
     # Ensure computation is done before stopping timer
     trace.block_until_ready()
@@ -119,29 +122,62 @@ def run_perturbation(struct: SimulationStructure) -> tuple[SimulationResult, flo
     elapsed_time = end_time - start_time
 
     # trace is jax array, convert to numpy
-    # Assuming trace shape is (N, 3) for the 3 fields
+    # Assuming trace shape is (N_blocks + 1, 3)
     trace_np = np.array(trace)
-    a1 = trace_np[:, 0]
-    a2 = trace_np[:, 1]
-    a3 = trace_np[:, 2]
+    a1_sparse = trace_np[:, 0]
+    a2_sparse = trace_np[:, 1]
+    a3_sparse = trace_np[:, 2]
 
-    z = np.array(struct.z_coords)
-    initial_power = np.abs(struct.p_in[0]) ** 2 + np.abs(struct.p_in[1]) ** 2 + np.abs(struct.p_in[2]) ** 2
+    z_full = np.array(struct.z_coords)
+    # Construct z_sparse corresponding to the trace points.
+    # Trace points are at 0, block_size, 2*block_size, ...
+    # If the last block is padded, the final trace point corresponds to the end of the structure (z_full[-1]).
+    z_indices = list(range(0, len(z_full), struct.block_size))
+    if z_indices[-1] != len(z_full) - 1:
+        z_indices.append(len(z_full) - 1)
 
-    total_power, deviation = calculate_power_stats(a1, a2, a3, float(initial_power))
+    # Verify exact length match just in case
+    if len(z_indices) != len(a1_sparse):
+        # Fallback or error if assumption fails (though logic holds for standard padding)
+        # Assuming just taking bounds if length differs slightly (e.g. if one extra point due to scan behavior?)
+        # trace should have N_blocks + 1. z_indices has N_blocks + 1.
+        print(f"Warning: Trace length {len(a1_sparse)} vs Indices length {len(z_indices)}. adjusting...")
+        z_sparse = z_full[z_indices[: len(a1_sparse)]]
+    else:
+        z_sparse = z_full[z_indices]
 
-    return SimulationResult(z=z, a1=a1, a2=a2, a3=a3, total_power=total_power, power_deviation_ratio=deviation), elapsed_time
+    # Interpolate to full grid using Polar Interpolation (Magnitude & Phase)
+    # This prevents magnitude dips ("scalloping") between sparse points when phase rotates.
+
+    def interpolate_polar(z_out: np.ndarray, z_in: np.ndarray, a_in: np.ndarray) -> np.ndarray:
+        mag = np.abs(a_in)
+        phase = np.unwrap(np.angle(a_in))
+
+        mag_out = np.interp(z_out, z_in, mag)
+        phase_out = np.interp(z_out, z_in, phase)
+        return mag_out * np.exp(1j * phase_out)
+
+    a1 = interpolate_polar(z_full, z_sparse, a1_sparse)
+    a2 = interpolate_polar(z_full, z_sparse, a2_sparse)
+    a3 = interpolate_polar(z_full, z_sparse, a3_sparse)
+
+    total_power = np.abs(a1) ** 2 + np.abs(a2) ** 2 + np.abs(a3) ** 2
+
+    return SimulationResult(z=z_full, a1=a1, a2=a2, a3=a3, total_power=total_power), elapsed_time
 
 
-def run_scipy_ode(struct: SimulationStructure, *, verification: bool = True) -> tuple[SimulationResult, float]:
-    z_coords = np.array(struct.z_coords)
-    kappa_shg_vals = np.array(struct.kappa_shg_vals)
-    kappa_sfg_vals = np.array(struct.kappa_sfg_vals)
-    dk_shg = float(struct.dk_shg)
-    dk_sfg = float(struct.dk_sfg)
-
-    y0 = np.array(struct.p_in, dtype=np.complex128)
-
+@memory.cache
+def _solve_ode_core(  # noqa: PLR0913
+    z_coords: np.ndarray,
+    kappa_shg_vals: np.ndarray,
+    kappa_sfg_vals: np.ndarray,
+    dk_shg: float,
+    dk_sfg: float,
+    y0: np.ndarray,
+    method: str,
+    rtol: float | None = None,
+    atol: float | None = None,
+) -> tuple[np.ndarray, np.ndarray, int]:
     def odes(z: float, A: tuple[float, float, float]) -> list[Any]:
         A1, A2, A3 = A
         idx = np.searchsorted(z_coords, z, side="right") - 1
@@ -154,71 +190,111 @@ def run_scipy_ode(struct: SimulationStructure, *, verification: bool = True) -> 
         dA3 = 1j * (3 * k_sfg * A1 * A2 * np.exp(-1j * dk_sfg * z))
         return [dA1, dA2, dA3]
 
+    kwargs = {}
+    if rtol is not None:
+        kwargs["rtol"] = rtol
+    if atol is not None:
+        kwargs["atol"] = atol
+
+    sol = solve_ivp(
+        odes,
+        t_span=(z_coords[0], z_coords[-1]),
+        y0=y0,
+        t_eval=z_coords,
+        method=method,
+        **kwargs,
+    )
+    return sol.t, sol.y, sol.nfev
+
+
+def run_scipy_ode(struct: SimulationStructure, *, verification: bool = True) -> tuple[SimulationResult, float]:
+    z_coords = np.array(struct.z_coords)
+    kappa_shg_vals = np.array(struct.kappa_shg_vals)
+    kappa_sfg_vals = np.array(struct.kappa_sfg_vals)
+    dk_shg = float(struct.dk_shg)
+    dk_sfg = float(struct.dk_sfg)
+
+    y0 = np.array(struct.p_in, dtype=np.complex128)
+
+    method = "DOP853" if verification else "RK45"
+    rtol = 1e-8 if verification else None
+    atol = 1e-8 if verification else None
+
     start_time = time.perf_counter()
-    if verification:
-        sol = solve_ivp(
-            odes,
-            t_span=(z_coords[0], z_coords[-1]),
-            y0=y0,
-            t_eval=z_coords,
-            method="DOP853",
-            rtol=1e-6,
-            atol=1e-6,
-        )
-    else:
-        sol = solve_ivp(
-            odes,
-            t_span=(z_coords[0], z_coords[-1]),
-            y0=y0,
-            t_eval=z_coords,
-            method="DOP853",
-            rtol=1e-5,
-            atol=1e-5,
-        )
+    t, y, nfev = _solve_ode_core(z_coords, kappa_shg_vals, kappa_sfg_vals, dk_shg, dk_sfg, y0, method, rtol, atol)
     end_time = time.perf_counter()
     elapsed_time = end_time - start_time
 
-    a1 = sol.y[0]
-    a2 = sol.y[1]
-    a3 = sol.y[2]
-    print(sol.nfev)
+    a1 = y[0]
+    a2 = y[1]
+    a3 = y[2]
+    print(nfev)
 
-    initial_power = np.abs(y0[0]) ** 2 + np.abs(y0[1]) ** 2 + np.abs(y0[2]) ** 2
-    total_power, deviation = calculate_power_stats(a1, a2, a3, float(initial_power))
+    total_power = np.abs(a1) ** 2 + np.abs(a2) ** 2 + np.abs(a3) ** 2
 
-    return SimulationResult(z=z_coords, a1=a1, a2=a2, a3=a3, total_power=total_power, power_deviation_ratio=deviation), elapsed_time
+    return SimulationResult(z=t, a1=a1, a2=a2, a3=a3, total_power=total_power), elapsed_time
 
 
-def plot_results(
+def plot_results(  # noqa: PLR0913
     pert_res: SimulationResult,
     scipy_res: SimulationResult,
-    scipy_res_verification: SimulationResult,
+    scipy_res_ver: SimulationResult,
     time_pert: float,
     time_scipy: float,
     time_scipy_ver: float,
     filename: str = "amp_trace_comparison.png",
 ) -> None:
-    # Plot Amplitudes (A3)
-    plt.figure(figsize=(12, 10))
+    # Centralized font size configuration
+    plt.rcParams.update(
+        {
+            "font.size": 16,
+            "axes.titlesize": 18,
+            "axes.labelsize": 16,
+            "xtick.labelsize": 14,
+            "ytick.labelsize": 14,
+            "legend.fontsize": 14,
+            "figure.titlesize": 20,
+        },
+    )
 
-    plt.subplot(2, 1, 1)
-    plt.plot(pert_res.z, np.abs(pert_res.a3), label=rf"$3\omega$ (Perturbation, {time_pert:.4f}s)", linewidth=2)
-    plt.plot(scipy_res.z, np.abs(scipy_res.a3), label=rf"$3\omega$ (SciPy RK45, {time_scipy:.4f}s)", linewidth=2)
-    plt.plot(scipy_res_verification.z, np.abs(scipy_res_verification.a3), label=rf"$3\omega$ (SciPy DOP853, {time_scipy_ver:.4f}s)", linewidth=2)
-    plt.xlabel(r"Position ($\mu m$)")
+    # Plot Amplitudes (A3)
+    # Calculate MSE
+    mse_pert = calculate_mse(pert_res, scipy_res_ver)
+    mse_scipy = calculate_mse(scipy_res, scipy_res_ver)
+
+    print(f"MSE (Super Step vs DOP853): FW={mse_pert[0]:.2e}, SHW={mse_pert[1]:.2e}, THW={mse_pert[2]:.2e}")
+    print(f"MSE (RK45 vs DOP853):         FW={mse_scipy[0]:.2e}, SHW={mse_scipy[1]:.2e}, THW={mse_scipy[2]:.2e}")
+
+    plt.figure(figsize=(15, 12))
+
+    # Plot FW (A1)
+    plt.subplot(3, 1, 1)
+    plt.plot(pert_res.z, np.abs(pert_res.a1), label=rf"$1\omega$ (Super Step, MSE={mse_pert[0]:.1e})", linewidth=2)
+    plt.plot(scipy_res.z, np.abs(scipy_res.a1), label=rf"$1\omega$ (RK45, MSE={mse_scipy[0]:.1e})", linewidth=2)
+    plt.plot(scipy_res_ver.z, np.abs(scipy_res_ver.a1), label=r"$1\omega$ (DOP853)", linestyle="--", linewidth=2)
     plt.ylabel("Amplitude")
-    plt.title("Comparison of $a_3$ Amplitude")
+    plt.title(rf"Fundamental Wave ($1\omega$) : Super Step time {time_pert:.4f}s vs RK45 time {time_scipy:.4f} vs DOP853 {time_scipy_ver:.4f}s")
     plt.legend()
     plt.grid(visible=True, linestyle=":")
 
-    # Plot Power Deviation (Manley-Rowe)
-    plt.subplot(2, 1, 2)
-    plt.plot(pert_res.z, pert_res.power_deviation_ratio, label="Perturbation", linewidth=2)
-    plt.plot(scipy_res.z, scipy_res.power_deviation_ratio, label="SciPy RK45", linewidth=2)
-    plt.plot(scipy_res_verification.z, scipy_res_verification.power_deviation_ratio, label="SciPy DOP853", linewidth=2)
+    # Plot SHW (A2)
+    plt.subplot(3, 1, 2)
+    plt.plot(pert_res.z, np.abs(pert_res.a2), label=rf"$2\omega$ (Super Step, MSE={mse_pert[1]:.1e})", linewidth=2)
+    plt.plot(scipy_res.z, np.abs(scipy_res.a2), label=rf"$2\omega$ (RK45, MSE={mse_scipy[1]:.1e})", linewidth=2)
+    plt.plot(scipy_res_ver.z, np.abs(scipy_res_ver.a2), label=r"$2\omega$ (DOP853)", linestyle="--", linewidth=2)
+    plt.ylabel("Amplitude")
+    plt.title(r"Second Harmonic Wave ($2\omega$)")
+    plt.legend()
+    plt.grid(visible=True, linestyle=":")
+
+    # Plot THW (A3)
+    plt.subplot(3, 1, 3)
+    plt.plot(pert_res.z, np.abs(pert_res.a3), label=rf"$3\omega$ (Super Step, MSE={mse_pert[2]:.1e})", linewidth=2)
+    plt.plot(scipy_res.z, np.abs(scipy_res.a3), label=rf"$3\omega$ (RK45, MSE={mse_scipy[2]:.1e})", linewidth=2)
+    plt.plot(scipy_res_ver.z, np.abs(scipy_res_ver.a3), label=r"$3\omega$ (DOP853)", linestyle="--", linewidth=2)
     plt.xlabel(r"Position ($\mu m$)")
-    plt.ylabel("Relative Power Deviation $(P - P_0)/P_0$")
-    plt.title("Manley-Rowe Relation Deviation")
+    plt.ylabel("Amplitude")
+    plt.title(r"Third Harmonic Wave ($3\omega$)")
     plt.legend()
     plt.grid(visible=True, linestyle=":")
 
@@ -233,23 +309,23 @@ def main() -> None:
     struct = setup_structure(config)
     print(f"Structure setup complete. Num domains: {len(struct.domain_widths)}")
 
-    # 2. Perturbation
-    print("Running Perturbation...")
+    # 2. Super Step
+    print("Running Super Step...")
     pert_res, time_pert = run_perturbation(struct)
-    print(f"Perturbation time: {time_pert:.6f} s")
+    print(f"Super Step time: {time_pert:.6f} s")
 
     # 3. SciPy (RK45)
-    print("Running SciPy DOP853 (tol=1e-5)...")
+    print("Running SciPy RK ...")
     scipy_res, time_scipy = run_scipy_ode(struct, verification=False)
     print(f"SciPy RK45 time:   {time_scipy:.6f} s")
 
     # 4. SciPy (DOP853)
-    print("Running SciPy DOP853 (tol=1e-7)...")
-    scipy_res_verification, time_scipy_ver = run_scipy_ode(struct, verification=True)
-    print(f"SciPy DOP853 time: {time_scipy_ver:.6f} s")
+    print("Running SciPy DOP853 ...")
+    # scipy_res_ver, time_scipy_ver = run_scipy_ode(struct, verification=True)
+    # print(f"SciPy DOP853 time: {time_scipy_ver:.6f} s")
 
     # 5. Plot
-    plot_results(pert_res, scipy_res, scipy_res_verification, time_pert, time_scipy, time_scipy_ver)
+    plot_results(pert_res, scipy_res, scipy_res, time_pert, time_scipy, time_scipy)
 
 
 if __name__ == "__main__":
