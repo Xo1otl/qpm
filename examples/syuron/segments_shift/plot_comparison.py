@@ -139,8 +139,8 @@ def main():
 
     int_3seg = get_spectrum(widths_3seg, kappas_structure, dk_scan)
 
-    bw_ppln = calculate_fw95m(dk_scan, int_ppln)
-    bw_3seg = calculate_fw95m(dk_scan, int_3seg)
+    bw_ppln, _ = calculate_fw95m(dk_scan, int_ppln)
+    bw_3seg, _ = calculate_fw95m(dk_scan, int_3seg)
 
     print(f"  PPLN BW:      {bw_ppln:.6f} rad/µm")
     print(f"  3-Segment BW: {bw_3seg:.6f} rad/µm")
@@ -153,10 +153,24 @@ def main():
     max_norm_ppln = jnp.max(int_ppln) / max_ppln
     max_norm_3seg = jnp.max(int_3seg) / max_ppln
 
+    # Calculate Scores (BW * MaxNorm)
+    score_ppln = bw_ppln * max_norm_ppln
+    score_3seg = bw_3seg * max_norm_3seg
+
     # Normalize by PPLN max
-    plt.plot(dk_scan, int_ppln / max_ppln, "k--", alpha=0.5, label=f"PPLN (Uniform) (L={len_ppln:.1f}µm, BW={bw_ppln:.6f}, Max={max_norm_ppln:.3f})")
     plt.plot(
-        dk_scan, int_3seg / max_ppln, "g-.", alpha=0.7, label=f"3-Segment (Init) (L={len_3seg:.1f}µm, BW={bw_3seg:.6f}, Max={max_norm_3seg:.3f})"
+        dk_scan,
+        int_ppln / max_ppln,
+        "k--",
+        alpha=0.5,
+        label=f"PPLN (Uniform) (L={len_ppln:.1f}µm, BW={bw_ppln:.6f}, Peak={max_norm_ppln:.3f}, Score={score_ppln:.4f})",
+    )
+    plt.plot(
+        dk_scan,
+        int_3seg / max_ppln,
+        "g-.",
+        alpha=0.7,
+        label=f"3-Segment (Init) (L={len_3seg:.1f}µm, BW={bw_3seg:.6f}, Peak={max_norm_3seg:.3f}, Score={score_3seg:.4f})",
     )
 
     # 5. Process and Plot Each File
@@ -175,8 +189,9 @@ def main():
 
             len_opt = jnp.sum(jnp.abs(widths_opt))
             int_opt = get_spectrum(widths_opt, kappas_structure, dk_scan)
-            bw_opt = calculate_fw95m(dk_scan, int_opt)
+            bw_opt, _ = calculate_fw95m(dk_scan, int_opt)
             max_norm_opt = jnp.max(int_opt) / max_ppln
+            score_opt = bw_opt * max_norm_opt
 
             label_name = pkl_file.split("/")[-1].replace(".pkl", "")
 
@@ -188,10 +203,10 @@ def main():
                 int_opt / max_ppln,
                 linewidth=2,
                 color=color,
-                label=f"{label_name} (L={len_opt:.1f}µm, BW={bw_opt:.6f}, Max={max_norm_opt:.3f})",
+                label=f"{label_name} (L={len_opt:.1f}µm, BW={bw_opt:.6f}, Peak={max_norm_opt:.3f}, Score={score_opt:.4f})",
             )
 
-            print(f"  Result: L={len_opt:.4f} µm, BW={bw_opt:.6f} rad/µm")
+            print(f"  Result: L={len_opt:.4f} µm, BW={bw_opt:.6f} rad/µm, Score={score_opt:.4f}")
 
         except Exception as e:
             print(f"  Error processing {pkl_file}: {e}")

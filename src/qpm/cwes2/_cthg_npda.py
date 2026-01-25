@@ -38,3 +38,30 @@ def calc_a3_npda(a1: jax.Array, kappas_shg: jax.Array, kappas_sfg: jax.Array, wi
     inner_sum_shifted = jnp.pad(inner_sum_cumulative, (1, 0))[:-1]
     double_sum = jnp.sum(s2_n * inner_sum_shifted)
     return -3 * a1**3 * (double_sum + diagonal_sum)
+
+
+@jax.jit
+def calc_a3_npda_trace(a1: jax.Array, kappas_shg: jax.Array, kappas_sfg: jax.Array, widths: jax.Array, dk1: jax.Array, dk2: jax.Array) -> jax.Array:  # noqa: PLR0913
+    """Calculates the evolution of a3 using NPDA."""
+    z_end = jnp.cumsum(widths)
+    z_start = jnp.pad(z_end[:-1], (1, 0))
+
+    # Precompute terms for each domain
+    j_n = _j(z_start, z_end, dk1, dk2)
+    s1_n = kappas_shg * _r(z_start, z_end, dk1)
+    s2_n = kappas_sfg * _r(z_start, z_end, dk2)
+
+    # Diagonal sum trace
+    diagonal_terms = kappas_shg * kappas_sfg * j_n
+    diagonal_trace = jnp.cumsum(diagonal_terms)
+
+    # Double sum trace
+    inner_sum_cumulative = jnp.cumsum(s1_n)
+    inner_sum_shifted = jnp.pad(inner_sum_cumulative, (1, 0))[:-1]
+    double_terms = s2_n * inner_sum_shifted
+    double_trace = jnp.cumsum(double_terms)
+
+    total_trace = -3 * a1**3 * (double_trace + diagonal_trace)
+
+    # Prepend 0 for the start
+    return jnp.concatenate([jnp.array([0j]), total_trace])
