@@ -37,16 +37,17 @@ $$
 * $D_n = w_n / \Lambda_0$
 
 # 5. The Continuum Limit
+Aliasing: $e^{i \Delta k z_n} = (-1)^m e^{i \Delta \beta z_n}$ ($\Delta k = G_m + \Delta \beta$).
 Riemann Sum $\Lambda_0 \to dz$:
 $$
 \sum_{n=0}^{N-1} (\dots) \Lambda_0 \xrightarrow{\Lambda_0 \to 0} \int_0^L (\dots) dz
 $$
 $$
-A_2(L) \approx i \kappa_{\text{mat}} A_1^2 \int_0^L \left[ - \frac{2}{m \pi} \sin(m \pi D(z)) e^{i G_m \delta(z)} \right] e^{i \Delta k z} dz
+A_2(L) \approx i \kappa_{\text{mat}} A_1^2 \int_0^L \left[ (-1)^{m+1} \frac{2}{m \pi} \sin(m \pi D(z)) e^{i G_m \delta(z)} \right] e^{i \Delta \beta z} dz
 $$
 
 # 6. Complex Effective Nonlinearity
-Comparison to generic integral:
+Comparison to QPM integral $\int \kappa_{\text{eff}}(z) e^{i \Delta \beta z} dz$:
 $$
-\kappa_{\text{eff}}(z) = - \kappa_{\text{mat}} \frac{2}{m \pi} \sin(m \pi D(z)) e^{i G_m \delta(z)}
+\kappa_{\text{eff}}(z) = (-1)^{m+1} \kappa_{\text{mat}} \frac{2}{m \pi} \sin(m \pi D(z)) e^{i G_m \delta(z)}
 $$

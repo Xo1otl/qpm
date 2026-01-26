@@ -240,7 +240,14 @@ def plot_results(
     fig.update_layout(
         height=800,
         width=900,
-        title_text=f"Inverse Design: Gaussian Spectrum (1.0308 - 1.0312 µm) {title_suffix}",
+        title={
+            "text": f"Inverse Design: Gaussian Spectrum (1.0308 - 1.0312 µm) {title_suffix}",
+            "y": 0.96,
+            "x": 0.5,
+            "xanchor": "center",
+            "yanchor": "top",
+        },
+        margin={"t": 120},
     )
     fig.update_xaxes(title_text="Wavelength (µm)", row=2, col=1)
     fig.update_yaxes(title_text="Amplitude (Normalized)", row=1, col=1)

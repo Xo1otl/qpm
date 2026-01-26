@@ -17,8 +17,8 @@ from qpm import cwes2, mgoslt
 
 @dataclass
 class SimulationConfig:
-    shg_len: float = 10005
-    sfg_len: float = 7500
+    shg_len: float = 18000
+    sfg_len: float = 0
     kappa_shg: float = 1.5e-5 / (2 / jnp.pi)
     kappa_sfg: float = 1.5e-5 / (2 / jnp.pi) * 2
     temperature: float = 70.0
@@ -26,58 +26,6 @@ class SimulationConfig:
     input_power: float = 10.0  # NOTE: initial amplitude is sqrt of this power
     block_size: int = 300
     iterations: int = 500
-
-
-def get_sqpm_structure(cfg: SimulationConfig) -> tuple[jax.Array, jax.Array, jax.Array, tuple[float, float, float, float]]:
-    """
-    Constructs an initial structure based on Simultaneous Quasi-Phase Matching (SQPM).
-    Uses the superposition of phase-matching potentials: sign(cos(dk1*z) + cos(dk2*z)).
-    """
-    # 1. Calculate Mismatches
-    dk_shg = mgoslt.calc_twm_delta_k(cfg.wavelength, cfg.wavelength, cfg.temperature)
-    dk_sfg = mgoslt.calc_twm_delta_k(cfg.wavelength, cfg.wavelength / 2, cfg.temperature)
-
-    lc_shg = jnp.pi / dk_shg
-    lc_sfg = jnp.pi / dk_sfg
-
-    # 2. Generate High-Res Grid for Modulation Calculation
-    total_len = cfg.shg_len + cfg.sfg_len
-    dz = min(float(lc_shg), float(lc_sfg)) / 50.0  # High resolution grid
-    z_grid = jnp.arange(0, total_len, dz)
-
-    # 3. Dual-Harmonic Modulation
-    # We sum the potentials. You can weight them, but 1:1 is usually robust for THG.
-    # S(z) = sign( cos(dk1 * z) + cos(dk2 * z) )
-    # Note: Adding a small epsilon avoids exactly zero cases
-    modulation = jnp.sign(jnp.cos(dk_shg * z_grid) + jnp.cos(dk_sfg * z_grid) + 1e-9)
-
-    # 4. Extract Domain Widths from Modulation (Zero-Crossings)
-    # Identify where the sign changes
-    sign_changes = jnp.abs(jnp.diff(modulation)) > 1.0
-    change_indices = jnp.where(sign_changes)[0]
-
-    # Calculate widths based on grid positions
-    # Append 0 and end index to compute full lengths
-    indices = jnp.concatenate([jnp.array([0]), change_indices, jnp.array([len(z_grid) - 1])])
-    widths = jnp.diff(indices) * dz
-
-    # Filter out extremely small domains (numerical noise) if necessary,
-    # though JAX static shape requirements might make filtering tricky.
-    # For a fixed shape/PoC, we can just use the raw output or pad.
-
-    # 5. Generate Kappa Arrays
-    # The sign sequence for this modulation is naturally +1, -1, +1, -1...
-    # because 'widths' defines the distance between flips.
-    n_domains = len(widths)
-    # Create alternating signs: [1, -1, 1, -1, ...]
-    signs = jnp.ones(n_domains)
-    signs = signs.at[1::2].set(-1.0)
-
-    # Apply signs to kappa
-    k_shg_vals = signs * cfg.kappa_shg
-    k_sfg_vals = signs * cfg.kappa_sfg
-
-    return widths, k_shg_vals, k_sfg_vals, (dk_shg, dk_sfg, lc_shg, lc_sfg)
 
 
 def get_initial_structure(cfg: SimulationConfig) -> tuple[jax.Array, jax.Array, jax.Array, tuple[float, float, float, float]]:
@@ -209,7 +157,7 @@ def main():
     # to be safe, or we could load config. Let's assume the user runs with same config or we re-generate 'widths' logic just to get kappas right.
 
     # We always need the kappa/dk context.
-    dummy_widths, k_shg, k_sfg, (dk1, dk2, lc1, lc2) = get_sqpm_structure(cfg)
+    dummy_widths, k_shg, k_sfg, (dk1, dk2, lc1, lc2) = get_initial_structure(cfg)
 
     print(f"Delta k1 (SHG): {dk1:.4f} (Lc = {lc1:.2f} um)")
     print(f"Delta k2 (SFG): {dk2:.4f} (Lc = {lc2:.2f} um)")
@@ -246,7 +194,7 @@ def main():
                 print("Loaded configuration from checkpoint object.")
 
             # Re-fetch structure constants with potentially updated config
-            _, _, _, (dk1, dk2, lc1, lc2) = get_sqpm_structure(cfg)
+            _, _, _, (dk1, dk2, lc1, lc2) = get_initial_structure(cfg)
             print(f"Updated Delta k1: {dk1:.4f}, Delta k2: {dk2:.4f}")
 
         if initial_opt_state is None:
@@ -293,16 +241,8 @@ def main():
     print(f"\nStart THG Amplitude: {amp_thg_start:.6f}")
     print(f"Start THG Intensity: {amp_thg_start**2:.6f}")
 
-    # 4. Run Optimization
-    final_widths, final_opt_state, loss_hist, _ = run_optimization(cfg, widths, k_shg, k_sfg, dk1, dk2, b_initial, cfg.iterations, initial_opt_state)
-
-    # 3. Simulate Initial (Current state before running more iters)
-    b_final_init = cwes2.simulate_super_step(physical_widths, k_shg, k_sfg, dk1, dk2, b_initial)
-    thg_amp_init = jnp.abs(b_final_init[2])
-    print(f"\nStart THG Amplitude: {thg_amp_init:.6f}")
-    print(f"Start THG Intensity: {thg_amp_init**2:.6f}")
-
     # 4. Optimization
+
     final_params, final_opt_state, loss_hist, _ = run_optimization(
         cfg,
         widths,
@@ -323,7 +263,7 @@ def main():
     print(f"\nOptimized THG Amplitude: {thg_amp_opt:.6f}")
     print(f"Optimized THG Intensity: {thg_amp_opt**2:.6f}")
     print(f"Total Length (Optimized): {jnp.sum(final_widths):.2f} um")
-    print(f"Improvement Factor: {thg_amp_opt**2 / (thg_amp_init**2):.4f}x")
+    print(f"Improvement Factor: {thg_amp_opt**2 / (amp_thg_start**2):.4f}x")
 
     # Save results as pickle
     checkpoint_data = {

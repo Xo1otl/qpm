@@ -170,7 +170,14 @@ def plot_results(
     fig.update_layout(
         height=600,
         width=900,
-        title_text=f"Inverse Design: Triangular Spectrum (Sinc² Apodization) {title_suffix}",
+        title={
+            "text": f"Inverse Design: Triangular Spectrum (Sinc² Apodization) {title_suffix}",
+            "y": 0.96,
+            "x": 0.5,
+            "xanchor": "center",
+            "yanchor": "top",
+        },
+        margin={"t": 120},
     )
     fig.update_xaxes(title_text="Wavelength (µm)")
     fig.update_xaxes(title_text="Wavelength (µm)")
