@@ -1,6 +1,6 @@
 ## Inverse Design QPM
 
-Design a QPM structure with a THG output amplitude of $1.8$ or higher.
+Design a QPM structure with a THG output amplitude of $1.7$ or higher.
 
 Given a system operating at wavelength $\lambda = 1.064$ and temperature $T = 70$ with an initial fundamental amplitude of $\sqrt{10}$, determine the sequence of domain widths $w$ that yields a final THG output amplitude $|A_{3\omega}| \ge 1.7$.
 
