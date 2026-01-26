@@ -10,13 +10,13 @@ $N$ periods, length $\Lambda_0$. Pulse center shifted by $\delta_n$.
 # 2. Integral Solution
 Undepleted Pump ($A_1(z) \approx A_1(0)$).
 $$
-A_2(L) = i \kappa_{\text{mat}} A_1^2 \int_0^L g(z) e^{i \Delta k z} dz
+A_2(L) = i \kappa_{\text{mat}} A_1^2 \int_0^L s(z) e^{i \Delta k z} dz
 $$
 
 # 3. Discrete Summation
 Period-wise decomposition.
 $$
-A_2(L) = i \kappa_{\text{mat}} A_1^2 \sum_{n=0}^{N-1} e^{i \Delta k z_n} \underbrace{\left[ \int_{-\Lambda_0/2}^{\Lambda_0/2} g_n(\xi) e^{i \Delta k \xi} d\xi \right]}_{I_{\text{unit}}(n)}
+A_2(L) = i \kappa_{\text{mat}} A_1^2 \sum_{n=0}^{N-1} e^{i \Delta k z_n} \underbrace{\left[ \int_{-\Lambda_0/2}^{\Lambda_0/2} s_n(\xi) e^{i \Delta k \xi} d\xi \right]}_{I_{\text{unit}}(n)}
 $$
 * $\xi = z - z_n$
 
