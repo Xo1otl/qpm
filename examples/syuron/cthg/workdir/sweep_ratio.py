@@ -32,6 +32,9 @@ def build_simulation_kernel(wavelength: float, temperature: float, total_length:
     # SFG: defined in original code as width=3*lc2, period=2*width
     width_shg = lc1
     width_sfg = 3 * lc2
+    # NOTE: SFG 1st-order fails constraints; however, jagged loss surface naturally limits domain width reduction.
+    # width_sfg = width_shg
+    # width_shg = width_sfg
 
     period_shg = 2 * width_shg
     period_sfg = 2 * width_sfg

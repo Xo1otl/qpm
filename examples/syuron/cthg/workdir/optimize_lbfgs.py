@@ -49,7 +49,6 @@ def run_optimization(w_init, dk1, dk2, b_init, k_shg, k_sfg, iters, bs, min_widt
         b_final = cwes2.simulate_super_step(w_real, k_shg, k_sfg, dk1, dk2, b_init, bs)
         obj = -(jnp.abs(b_final[2]) ** 2)
 
-        # Constraints
         if min_width is not None:
             violation = jax.nn.relu(min_width - w_real)
             obj += penalty_w * jnp.sum(violation**2)
@@ -95,7 +94,7 @@ def main():
 
     # 2. Setup
     dk1, dk2, b_init, k_shg, k_sfg = get_static_constants(n_domains)
-    bs = next((b for b in range(min(300, n_domains), 19, -1) if n_domains % b == 0), 300)
+    bs = next((b for b in range(min(100, n_domains), 19, -1) if n_domains % b == 0), 100)
     print(f"Config: {n_domains} domains | Block Size: {bs} | L-BFGS Iters: {args.iters}")
 
     # 3. Run Optimization
@@ -114,7 +113,7 @@ def main():
     print(f"Completed in {duration:.2f}s")
     print(f"Amplitude: {amp_seed:.6f} -> {final_amp:.6f}")
 
-    if final_amp > amp_seed:
+    if final_amp < amp_seed:
         with open(args.output, "wb") as f:
             pickle.dump({"widths": np.array(jnp.abs(final_w)), "amp": final_amp}, f)
         print(f"Saved optimized result to {args.output}")
