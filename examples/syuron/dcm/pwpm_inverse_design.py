@@ -20,7 +20,7 @@ class SimulationConfig:
     kappa_mag: float = 1.5e-5 * (jnp.pi / 2)
 
     # Design
-    num_periods: int = 1500
+    total_length_um: float = 15000.0  # 15 mm
     target_bandwidth_um: float = 0.01
     apodization_sigma_ratio: float = 0.1  # Ratio of transition width to flat-top width
 
@@ -30,13 +30,16 @@ class SimulationConfig:
     wl_points: int = 1000
 
 
-def calculate_parameters(config: SimulationConfig) -> tuple[float, float, float]:
+def calculate_parameters(config: SimulationConfig) -> tuple[int, float, float, float]:
     """Calculates physical parameters."""
     wl_center = config.design_wl
     dk_center = mgoslt.calc_twm_delta_k(wl_center, wl_center, config.design_temp)
 
     # Poling period
     Lp = 2 * (jnp.pi / dk_center)
+
+    # Calculate num_periods from total_length
+    num_periods = int(config.total_length_um / Lp)
 
     # Bandwidth in delta_k
     wl_bw_start = wl_center - config.target_bandwidth_um / 2
@@ -45,7 +48,7 @@ def calculate_parameters(config: SimulationConfig) -> tuple[float, float, float]
     dk_bw_end = mgoslt.calc_twm_delta_k(wl_bw_end, wl_bw_end, config.design_temp)
     dk_bandwidth = jnp.abs(dk_bw_end - dk_bw_start)
 
-    return Lp, dk_center, dk_bandwidth
+    return num_periods, Lp, dk_center, dk_bandwidth
 
 
 def generate_target_profile(num_periods: int, Lp: float, dk_bandwidth: float, sigma_ratio: float) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
@@ -199,12 +202,13 @@ def main() -> None:
     config = SimulationConfig()
 
     print("Initializing PWPM Design...")
-    Lp, dk_center, dk_bandwidth = calculate_parameters(config)
+    num_periods, Lp, dk_center, dk_bandwidth = calculate_parameters(config)
     print(f"Poling Period: {Lp:.4f} um")
+    print(f"Calculated Number of Periods: {num_periods} (Length: {config.total_length_um} um)")
     print(f"Target Bandwidth (dk): {dk_bandwidth:.4E} rad/um")
 
     # 1. Generate Target
-    d_n, delta_n, z_n = generate_target_profile(config.num_periods, Lp, dk_bandwidth, config.apodization_sigma_ratio)
+    d_n, delta_n, z_n = generate_target_profile(num_periods, Lp, dk_bandwidth, config.apodization_sigma_ratio)
 
     # 2. Construct Structure
     widths, kappas = construct_geometry_shifted(d_n, delta_n, Lp, config.kappa_mag)

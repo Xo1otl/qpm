@@ -21,10 +21,10 @@ class SimulationConfig:
     kappa_mag: float = 1.5e-5 * (jnp.pi / 2)
 
     # Design
-    total_length_um: float = 15000.0  # 15 mm
+    total_length_um: float = 10000.0  # 15 mm
 
     # Spectral Target
-    target_bandwidth_um: float = 0.010  # 10 nm in um
+    target_bandwidth_um: float = 0.020  # 20 nm in um
 
     # Simulation Wavelengths
     wl_start_um: float = 1.050
@@ -32,9 +32,9 @@ class SimulationConfig:
     wl_points: int = 20000
 
     # Target Spectrum Parameters
-    # Lower order = softer edges = faster spatial decay = less truncation = less ripple
-    # Fill factor 0.5 leaves 50% of the crystal for the tails to decay naturally.
-    sg_order: int = 4
+    # Ratio of transition width (sigma) to flat-top width (bandwidth)
+    apodization_sigma_ratio: float = 0.1
+    # Fill factor defines the spatial chirp width relative to total length
     fill_factor: float = 0.50
 
 
@@ -70,10 +70,18 @@ def generate_chirped_target(
     dk_rel = dks - dk_center
 
     # 2. Define Spectral Amplitude (Flat-Top)
-    # Super-Gaussian order
-    sg_order = config.sg_order
-    w_spectral = (dk_bandwidth / 2.0) / (jnp.log(2) ** (1 / sg_order))
-    amplitude_spectrum = jnp.exp(-((dk_rel / w_spectral) ** sg_order))
+    # Definition: Convolution of Rect(width=BW) and Gaussian(width=sigma)
+    # This matches the profile used in pwpm_inverse_design.py
+
+    sigma_freq = config.apodization_sigma_ratio * dk_bandwidth
+
+    # Analytical convolution of Rect(width=BW) and Gaussian(sigma):
+    # Result ~ erf((k + BW/2) / (sqrt(2)*sigma)) - erf((k - BW/2) / (sqrt(2)*sigma))
+
+    arg_plus = (dk_rel + dk_bandwidth / 2.0) / (jnp.sqrt(2) * sigma_freq)
+    arg_minus = (dk_rel - dk_bandwidth / 2.0) / (jnp.sqrt(2) * sigma_freq)
+
+    amplitude_spectrum = 0.5 * (jax.scipy.special.erf(arg_plus) - jax.scipy.special.erf(arg_minus))
 
     # 3. Define Spectral Phase (Chirp)
     # Analytical determination of Chirp Rate (D2)
