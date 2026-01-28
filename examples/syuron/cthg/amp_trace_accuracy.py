@@ -234,6 +234,53 @@ def run_scipy_ode(struct: SimulationStructure, *, verification: bool = True) -> 
 
     return SimulationResult(z=t, a1=a1, a2=a2, a3=a3, total_power=total_power), elapsed_time
 
+def plot_results_notext(
+    pert_res: SimulationResult,
+    scipy_res: SimulationResult,
+    scipy_res_ver: SimulationResult,
+    time_pert: float,
+    time_scipy: float,
+    time_scipy_ver: float,
+    filename: str = "amp_trace_comparison.png",
+) -> None:
+    # 凡例のフォントサイズを32に設定
+    plt.rcParams.update({"legend.fontsize": 32})
+
+    plt.figure(figsize=(20, 15)) # 凡例が大きくなるため、少し横幅を広げました
+
+    # FW (A1)
+    ax1 = plt.subplot(3, 1, 1)
+    plt.plot(pert_res.z, np.abs(pert_res.a1), label="Super Step", linewidth=3)
+    plt.plot(scipy_res.z, np.abs(scipy_res.a1), label="RK45", linewidth=3)
+    plt.plot(scipy_res_ver.z, np.abs(scipy_res_ver.a1), label="DOP853", linestyle="--", linewidth=3)
+    ax1.set_xticklabels([])
+    ax1.set_yticklabels([])
+    plt.legend(loc="upper right")
+    plt.grid(visible=True, linestyle=":")
+
+    # SHW (A2)
+    ax2 = plt.subplot(3, 1, 2)
+    plt.plot(pert_res.z, np.abs(pert_res.a2), label="Super Step", linewidth=3)
+    plt.plot(scipy_res.z, np.abs(scipy_res.a2), label="RK45", linewidth=3)
+    plt.plot(scipy_res_ver.z, np.abs(scipy_res_ver.a2), label="DOP853", linestyle="--", linewidth=3)
+    ax2.set_xticklabels([])
+    ax2.set_yticklabels([])
+    plt.legend(loc="upper right")
+    plt.grid(visible=True, linestyle=":")
+
+    # THW (A3)
+    ax3 = plt.subplot(3, 1, 3)
+    plt.plot(pert_res.z, np.abs(pert_res.a3), label="Super Step", linewidth=3)
+    plt.plot(scipy_res.z, np.abs(scipy_res.a3), label="RK45", linewidth=3)
+    plt.plot(scipy_res_ver.z, np.abs(scipy_res_ver.a3), label="DOP853", linestyle="--", linewidth=3)
+    ax3.set_xticklabels([])
+    ax3.set_yticklabels([])
+    plt.legend(loc="upper right")
+    plt.grid(visible=True, linestyle=":")
+
+    plt.tight_layout()
+    plt.savefig(filename)
+    print(f"Plot saved to {filename} with large legends (font size 32).")
 
 def plot_results(  # noqa: PLR0913
     pert_res: SimulationResult,
@@ -245,15 +292,16 @@ def plot_results(  # noqa: PLR0913
     filename: str = "amp_trace_comparison.png",
 ) -> None:
     # Centralized font size configuration
+    scale = 1
     plt.rcParams.update(
         {
-            "font.size": 16,
-            "axes.titlesize": 18,
-            "axes.labelsize": 16,
-            "xtick.labelsize": 14,
-            "ytick.labelsize": 14,
-            "legend.fontsize": 14,
-            "figure.titlesize": 20,
+            "font.size": 16 * scale,
+            "axes.titlesize": 18 * scale,
+            "axes.labelsize": 16 * scale,
+            "xtick.labelsize": 14 * scale,
+            "ytick.labelsize": 14 * scale,
+            "legend.fontsize": 14 * scale,
+            "figure.titlesize": 20 * scale,
         },
     )
 
@@ -321,11 +369,11 @@ def main() -> None:
 
     # 4. SciPy (DOP853)
     print("Running SciPy DOP853 ...")
-    # scipy_res_ver, time_scipy_ver = run_scipy_ode(struct, verification=True)
-    # print(f"SciPy DOP853 time: {time_scipy_ver:.6f} s")
+    scipy_res_ver, time_scipy_ver = run_scipy_ode(struct, verification=True)
+    print(f"SciPy DOP853 time: {time_scipy_ver:.6f} s")
 
     # 5. Plot
-    plot_results(pert_res, scipy_res, scipy_res, time_pert, time_scipy, time_scipy)
+    plot_results_notext(pert_res, scipy_res, scipy_res_ver, time_pert, time_scipy, time_scipy)
 
 
 if __name__ == "__main__":

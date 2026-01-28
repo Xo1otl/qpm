@@ -21,21 +21,21 @@ class SimulationConfig:
     kappa_mag: float = 1.5e-5 * (jnp.pi / 2)
 
     # Design
-    total_length_um: float = 10000.0  # 15 mm
+    total_length_um: float = 10000.0  # 10 mm
 
     # Spectral Target
-    target_bandwidth_um: float = 0.020  # 20 nm in um
+    target_bandwidth_um: float = 0.1  # 20 nm in um
 
     # Simulation Wavelengths
-    wl_start_um: float = 1.050
-    wl_end_um: float = 1.080
-    wl_points: int = 20000
+    wl_start_um: float = 1.0
+    wl_end_um: float = 1.14
+    wl_points: int = 1000
 
     # Target Spectrum Parameters
     # Ratio of transition width (sigma) to flat-top width (bandwidth)
-    apodization_sigma_ratio: float = 0.1
+    apodization_sigma_ratio: float = 0.13
     # Fill factor defines the spatial chirp width relative to total length
-    fill_factor: float = 0.50
+    fill_factor: float = 0.4
 
 
 def calculate_parameters(config: SimulationConfig) -> tuple[float, float]:
