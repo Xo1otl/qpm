@@ -1,5 +1,5 @@
 # Overview
-Cascaded THG prediction via **Coupled-Wave Equations**, first-order **Picard**, **Arbitrary Coupling Profiles**, and **Poly-Domain Analytic Integration**.
+Cascaded THG prediction via **Coupled-Wave Equations**, first-order **Picard**, and **Wide-Domain Analytic Integration**.
 
 # Coupled-Wave Equations
 $$
@@ -30,23 +30,9 @@ $$K_{LIN} = \frac{\Delta k_{SHG}}{2} |B_2|^2 + \frac{\Delta k_{SHG} + \Delta k_{
 # Integral Form
 $$\boldsymbol{B}(z_n+h) = e^{i\boldsymbol{L}h} \boldsymbol{B}(z_n) + i \int_0^h e^{i\boldsymbol{L}(h-\tau')} \boldsymbol{N}(\boldsymbol{B}(z_n+\tau'), \boldsymbol{B}^*(z_n+\tau'), z_n+\tau') d\tau'$$
 
-# Local Undepleted Approximation
-Linear flow:
+# Analytic Integration
+Local Undepleted Approximation.
 $$\boldsymbol{B}^{(0)}(z_n + \tau') = e^{i\boldsymbol{L}\tau'}\boldsymbol{B}(z_n)$$
-
-Prediction $\boldsymbol{B}_{pred} = e^{i\boldsymbol{L}h_n} \boldsymbol{B}_n + \boldsymbol{B}_{NL}$.
-
-# Arbitrary Coupling Profiles
-For any continuous $\kappa(z)$.
-
-Step Functional:
-$$\hat{\mathcal{U}}(h, \kappa(z))[\boldsymbol{B}] \equiv e^{i\boldsymbol{L}h} \boldsymbol{B} + \boldsymbol{B}_{NL}(\boldsymbol{B}, h, \kappa(z))$$
-
-System Evolution:
-$$\boldsymbol{B}_{final} = \hat{\mathcal{U}}(L_{total}, \kappa(z)) \boldsymbol{B}_{0}$$
-
-# Poly-Domain Analytic Integration
-Integration step $h$. Local Undepleted Approximation.
 
 Finite Domain Fourier Transform:
 $$\mathcal{F}[\kappa](\omega) = \int_{0}^{h} \kappa(z_0 + \tau) e^{i\omega \tau} d\tau$$
