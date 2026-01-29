@@ -179,9 +179,17 @@ def plot_results(
     wls: jnp.ndarray,
     results_map: dict[str, tuple[jnp.ndarray, float, float]],
     target_spectra: dict[str, jnp.ndarray],
+    d_n: jnp.ndarray,
+    Lp: float,
 ) -> None:
     """Plots the simulation results and metrics."""
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1, subplot_titles=("Amplitude", "Phase"))
+    fig = make_subplots(
+        rows=3,
+        cols=1,
+        shared_xaxes=False,
+        vertical_spacing=0.1,
+        subplot_titles=("Amplitude", "Phase", "Duty Ratio Profile"),
+    )
 
     # Plot Targets
     colors = ["green", "purple"]
@@ -236,9 +244,17 @@ def plot_results(
         # metrics_strs.append(f"[{name.split()[0]}: RMSE={rmse:.4e}, GDD={peak_gdd:.4e} ps²]")
         metrics_strs.append(f"{name.split()[0]}: RMSE={rmse:.4e}")
 
+    # Duty Ratio
+    z_axis = (jnp.arange(len(d_n)) + 0.5) * Lp
+    fig.add_trace(
+        go.Scatter(x=z_axis, y=d_n, mode="lines", name="Duty Ratio", line={"color": "#d62728", "width": 1.5}),
+        row=3,
+        col=1,
+    )
+
     title_suffix = "<br>" + "<br>".join(metrics_strs)
     fig.update_layout(
-        height=800,
+        height=1000,
         width=900,
         title={
             "text": f"Inverse Design: Gaussian Spectrum (1.0308 - 1.0312 µm) {title_suffix}",
@@ -253,7 +269,11 @@ def plot_results(
     fig.update_yaxes(title_text="Amplitude (Normalized)", row=1, col=1)
     fig.update_yaxes(title_text="Phase (rad)", row=2, col=1)
 
-    fig.show()
+    fig.update_xaxes(title_text="Position (µm)", row=3, col=1)
+    fig.update_yaxes(title_text="Duty Ratio", row=3, col=1)
+
+    fig.write_html("gaussian_results.html")
+    print("Results exported to gaussian_results.html")
 
 
 def main() -> None:
@@ -303,7 +323,7 @@ def main() -> None:
         "Target (2D Peak)": target_2d,
     }
 
-    plot_results(wls, results, targets)
+    plot_results(wls, results, targets, d_n, Lp)
 
 
 if __name__ == "__main__":

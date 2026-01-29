@@ -88,9 +88,21 @@ def run_simulation(widths: jnp.ndarray, kappas: jnp.ndarray, dks: jnp.ndarray) -
     return batch_simulate(widths, kappas, dks, b_initial)
 
 
-def plot_results(wls: jnp.ndarray, amps: jnp.ndarray, config: SimulationConfig) -> None:
+def plot_results(
+    wls: jnp.ndarray,
+    amps: jnp.ndarray,
+    d_n: jnp.ndarray,
+    Lp: float,
+    config: SimulationConfig,
+) -> None:
     """Plots the simulation results."""
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1, subplot_titles=("Amplitude Spectrum", "Phase Response"))
+    fig = make_subplots(
+        rows=3,
+        cols=1,
+        shared_xaxes=False,
+        vertical_spacing=0.1,
+        subplot_titles=("Amplitude Spectrum", "Phase Response", "Duty Ratio Profile"),
+    )
 
     # Engineered
     fig.add_trace(
@@ -107,15 +119,27 @@ def plot_results(wls: jnp.ndarray, amps: jnp.ndarray, config: SimulationConfig) 
         col=1,
     )
 
+    # Duty Ratio
+    z_axis = (jnp.arange(len(d_n)) + 0.5) * Lp
+    fig.add_trace(
+        go.Scatter(x=z_axis, y=d_n, mode="lines", name="Duty Ratio", line={"color": "#d62728", "width": 1.5}),
+        row=3,
+        col=1,
+    )
+
     # Layout
     fig.update_layout(
-        height=800,
+        height=1000,
         width=900,
         title={"text": f"DCM Flat-Comb: {2 * config.comb_modes + 1} Modes, {config.comb_spacing_nm}nm Spacing", "x": 0.5},
         template="plotly_white",
     )
     fig.update_xaxes(title_text="Wavelength (µm)", row=2, col=1)
     fig.update_yaxes(title_text="|Amplitude|", row=1, col=1)
+    fig.update_yaxes(title_text="Phase (rad)", row=2, col=1)
+
+    fig.update_xaxes(title_text="Position (µm)", row=3, col=1)
+    fig.update_yaxes(title_text="Duty Ratio", row=3, col=1)
 
     fig.write_html("flat_comb_results.html")
     print("Results exported to flat_comb_results.html")
@@ -149,7 +173,7 @@ def main() -> None:
     amps = run_simulation(w, k, dks)
 
     # 5. Plot
-    plot_results(wls, amps, config)
+    plot_results(wls, amps, d_n, Lp, config)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,9 @@
 import argparse
 import pickle
+import sys
 from collections.abc import Callable
-import os
+from pathlib import Path
+from typing import Any
 
 import jax
 
@@ -11,6 +13,7 @@ jax.config.update("jax_platforms", "cpu")
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+
 import super_gaussian_opt as sg_opt
 from qpm import cwes2
 
@@ -68,7 +71,7 @@ def get_reference_max_intensity(cfg: sg_opt.SimConfig, initial_widths: jax.Array
     return float(jnp.max(jnp.abs(uniform_amps) ** 2)), uniform_amps
 
 
-def analyze_trace(x: jax.Array, y: jax.Array, widths: jax.Array | None = None) -> dict:
+def analyze_trace(x: jax.Array, y: jax.Array, widths: jax.Array | None = None) -> dict[str, Any]:
     """Helper to extract metrics for plotting."""
     fw95, (start, end) = calculate_fw95m(x, y)
     peak = float(jnp.max(y))
@@ -82,9 +85,10 @@ def analyze_trace(x: jax.Array, y: jax.Array, widths: jax.Array | None = None) -
     }
 
 
-def plot_verification_results(data: dict, output_filename: str = "verify_result.png"):
+def plot_verification_results(data: dict[str, Any], output_filename: str = "verify_result.png", scale: float = 1.0) -> None:
     """Generates the comparison plot from data dictionary."""
     grid = FIXED_DK_GRID
+    fs = 12 * scale
 
     # Extract Data
     ref_norm = jnp.sqrt(data["spectrum_ref"])
@@ -95,14 +99,14 @@ def plot_verification_results(data: dict, output_filename: str = "verify_result.
     final_widths = data["final_widths"]
 
     # Calculate Metrics
-    m_ref = analyze_trace(grid, ref_norm)  # No widths stored for ref usually
+    m_ref = analyze_trace(grid, ref_norm)
     m_init = analyze_trace(grid, init_norm, init_widths)
     m_final = analyze_trace(grid, final_norm, final_widths)
 
+    # Keep figure size constant to ensure scale affects relative text size
     plt.figure(figsize=(12, 7))
 
     # Trace 1: Uniform
-    # Note: Uniform length is approx same as initial, but we omit L here to keep it simple as it's a ref
     label_ref = f"Uniform (W={m_ref['fw95']:.5f}, A={m_ref['peak']:.2f})"
     plt.plot(grid, ref_norm, ":", color="gray", alpha=0.5, label=label_ref)
 
@@ -110,49 +114,52 @@ def plot_verification_results(data: dict, output_filename: str = "verify_result.
     label_init = f"Initial 3-Seg (L={m_init['length']:.1f}, W={m_init['fw95']:.5f}, A={m_init['peak']:.2f})"
     plt.plot(grid, init_norm, "--", color="green", alpha=0.6, label=label_init)
 
-    # Initial FW95 Region
-    # if m_init["region_end"] > m_init["region_start"]:
-    #     plt.axvspan(m_init["region_start"], m_init["region_end"], color="green", alpha=0.1, label="_nolegend_")
-
     # Trace 3: Optimized
     label_opt = f"Optimized (L={m_final['length']:.1f}, W={m_final['fw95']:.5f}, A={m_final['peak']:.2f})"
-    plt.plot(grid, final_norm, "-", color="#2E86AB", linewidth=2, label=label_opt)
+    plt.plot(grid, final_norm, "-", color="#2E86AB", linewidth=2 * scale, label=label_opt)
 
-    plt.legend()
-    plt.title("Optimization Verification")
-    plt.xlabel(r"$\Delta k$")
-    plt.ylabel("Normalized Amplitude")
+    plt.legend(fontsize=fs * 0.9)
+    plt.title("Optimization Verification", fontsize=fs * 1.2)
+    plt.xlabel(r"$\Delta k$", fontsize=fs)
+    plt.ylabel("Normalized Amplitude", fontsize=fs)
+    plt.xticks(fontsize=fs * 0.8)
+    plt.yticks(fontsize=fs * 0.8)
     plt.xlim(DK_START, DK_END)
-    plt.grid(True, linestyle="--", alpha=0.3)
+    plt.grid(visible=True, linestyle="--", alpha=0.3)
 
-    plt.savefig(output_filename)
+    plt.tight_layout()
+    plt.savefig(output_filename, bbox_inches="tight")
     print(f"Plot saved to {output_filename}")
     plt.close()
 
 
-def plot_domain_widths(widths: jax.Array, output_filename: str = "domain_widths.png"):
-    """Generates a plot of domain widths."""
-    widths_np = np.array(widths)  # Convert to numpy for plotting
+def plot_domain_widths(widths: jax.Array, output_filename: str = "domain_widths.png", scale: float = 1.0) -> None:
+    """Generates a scatter plot of domain widths to avoid visual saturation."""
+    widths_np = np.array(widths)
     indices = np.arange(len(widths_np))
+    fs = 12 * scale
 
+    # Keep figure size constant to ensure scale affects relative text size
     plt.figure(figsize=(10, 6))
-    plt.bar(indices, widths_np, color="#2E86AB", width=1.0, edgecolor="none")
-    # plt.step(indices, widths_np, where='mid', color="#2E86AB") # Alternative visualization
+    # Using scatter instead of bar to prevent "solid color" block with many domains
+    plt.scatter(indices, widths_np, color="#2E86AB", s=0.5 * scale, alpha=0.7)
 
-    plt.title("Optimized Domain Width Distribution")
-    plt.xlabel("Domain Index")
-    plt.ylabel(r"Width ($\mu m$)")
+    plt.title("Optimized Domain Width Distribution", fontsize=fs * 1.2)
+    plt.xlabel("Domain Index", fontsize=fs)
+    plt.ylabel(r"Width ($\mu m$)", fontsize=fs)
+    plt.xticks(fontsize=fs * 0.8)
+    plt.yticks(fontsize=fs * 0.8)
     plt.grid(visible=True, linestyle="--", alpha=0.3)
 
-    # Optional: Highlight statistical mean or something, but simple is best for now
-
-    plt.savefig(output_filename)
+    plt.tight_layout()
+    plt.savefig(output_filename, bbox_inches="tight")
     print(f"Domain width plot saved to {output_filename}")
     plt.close()
 
 
 # --- Main Verification Logic ---
-def run_verification(target_width: float, target_intensity: float, iterations: int):
+def run_verification(target_width: float, target_intensity: float, iterations: int, scale: float = 1.0) -> None:
+    """Executes the optimization and saves the results."""
     print("--- Starting Verification ---")
     print(f"Target Width:      {target_width:.6f}")
     print(f"Target Intensity: {target_intensity:.6f}")
@@ -252,7 +259,7 @@ def run_verification(target_width: float, target_intensity: float, iterations: i
     print(f"Data saved to {pkl_filename}")
 
     # 8. Plot
-    plot_verification_results(data)
+    plot_verification_results(data, scale=scale)
 
 
 if __name__ == "__main__":
@@ -263,6 +270,9 @@ if __name__ == "__main__":
     group.add_argument("--run", action="store_true", help="Run a fresh optimization")
     group.add_argument("--load", type=str, help="Load and plot an existing pickle file")
 
+    # Shared args
+    parser.add_argument("--scale", type=float, default=1.2, help="Scale factor for plot font sizes (default: 1.2)")
+
     # Args for --run mode
     parser.add_argument("--width", type=float, help="Target spectral width (required for --run)")
     parser.add_argument("--int", type=float, help="Target normalized intensity (required for --run)")
@@ -271,24 +281,25 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.load:
-        if not os.path.exists(args.load):
+        load_path = Path(args.load)
+        if not load_path.exists():
             print(f"Error: File {args.load} not found.")
-            exit(1)
+            sys.exit(1)
 
         print(f"Loading data from {args.load}...")
-        with open(args.load, "rb") as f:
+        with load_path.open("rb") as f:
             data = pickle.load(f)
 
-        # Generate plot name based on input pkl name
-        base_name = os.path.splitext(args.load)[0]
+        # Generate plot names
+        base_name = load_path.stem
         plot_name = f"{base_name}_plot.png"
-        plot_verification_results(data, output_filename=plot_name)
+        plot_verification_results(data, output_filename=plot_name, scale=args.scale)
 
         width_plot_name = f"{base_name}_widths.png"
-        plot_domain_widths(data["final_widths"], output_filename=width_plot_name)
+        plot_domain_widths(data["final_widths"], output_filename=width_plot_name, scale=args.scale)
 
     elif args.run:
         if args.width is None or args.int is None:
             parser.error("--run requires --width and --int")
 
-        run_verification(args.width, args.int, args.iter)
+        run_verification(args.width, args.int, args.iter, scale=args.scale)
