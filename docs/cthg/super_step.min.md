@@ -1,5 +1,5 @@
 # Overview
-Cascaded THG prediction via **Coupled-Wave Equations**, first-order **Picard**, and **Wide-Domain Analytic Integration**.
+Cascaded THG prediction via **Coupled-Wave Equations**, **Interaction Picture**, **Hamiltonian Form**, **Integral Form**, and **Analytic Integration** by **LFAGA**.
 
 # Coupled-Wave Equations
 $$
@@ -9,7 +9,7 @@ $$
 $$
 $\Delta k$: Phase mismatches. $\kappa(z)$: Spatially-varying coupling.
 
-# Interaction picture
+# Interaction Picture
 Rotation $\boldsymbol{B}(z) = e^{i\boldsymbol{L}z} \boldsymbol{A}(z)$.
 
 $$\frac{d\boldsymbol{B}}{dz} = i\boldsymbol{L}\boldsymbol{B} + i\boldsymbol{N}(\boldsymbol{B}, z)$$
@@ -31,7 +31,7 @@ $$K_{LIN} = \frac{\Delta k_{SHG}}{2} |B_2|^2 + \frac{\Delta k_{SHG} + \Delta k_{
 $$\boldsymbol{B}(z_n+h) = e^{i\boldsymbol{L}h} \boldsymbol{B}(z_n) + i \int_0^h e^{i\boldsymbol{L}(h-\tau')} \boldsymbol{N}(\boldsymbol{B}(z_n+\tau'), \boldsymbol{B}^*(z_n+\tau'), z_n+\tau') d\tau'$$
 
 # Analytic Integration
-Local Undepleted Approximation.
+Local Fixed Amplitude Gradient Approximation.
 $$\boldsymbol{B}^{(0)}(z_n + \tau') = e^{i\boldsymbol{L}\tau'}\boldsymbol{B}(z_n)$$
 
 Finite Domain Fourier Transform:
