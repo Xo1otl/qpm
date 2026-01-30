@@ -1,5 +1,5 @@
 # Overview
-Derivation of **A-Form Update Scheme** via **LFAGA Approximation** directly from **Coupled-Wave Equations**.
+Derivation of **Prediction Scheme** via **LCAA** from **Coupled-Wave Equations**.
 
 # Coupled-Wave Equations
 $$
@@ -8,15 +8,14 @@ $$
 \frac{d A_3}{dz} = i \left[ 3 \kappa_{SFG}(z) A_1 A_2 e^{-i\Delta k_{SFG} z} \right]
 $$
 
-# LFAGA Approximation
-**Assumption**: Envelope variations negligible vs phase oscillation over step $h$.
-**Approximation**: Fixed amplitude within integral $z \in [z_n, z_{n+1}]$.
+# Local Constant Amplitude Approximation
+Fixed amplitude within integral $z \in [z_n, z_{n+1}]$.
 $$A_j(z) \approx A_j(z_n)$$
 
-**Definition**: Phase-weighted integral.
+# Prediction Scheme
+Phase-weighted integral.
 $$\mathcal{F}[\kappa](\omega) = \int_{z_n}^{z_n+h} \kappa(z) e^{i\omega z} dz$$
 
-# A-Form Update Scheme
 Substitute approximation into integrated ODEs.
 
 $$
