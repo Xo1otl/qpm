@@ -1,5 +1,5 @@
 # Overview
-Cascaded THG prediction via **Coupled-Wave Equations**, **Interaction Picture**, **Hamiltonian Form**, **Integral Form**, and **Analytic Integration** by **LFAGA**.
+Cascaded THG prediction via **Coupled-Wave Equations**, **Schrödinger Picture**, **Hamiltonian Form**, **Integral Form**, and **Analytic Integration** by **LFAGA**.
 
 # Coupled-Wave Equations
 $$
@@ -9,7 +9,7 @@ $$
 $$
 $\Delta k$: Phase mismatches. $\kappa(z)$: Spatially-varying coupling.
 
-# Interaction Picture
+# Schrödinger Picture
 Rotation $\boldsymbol{B}(z) = e^{i\boldsymbol{L}z} \boldsymbol{A}(z)$.
 
 $$\frac{d\boldsymbol{B}}{dz} = i\boldsymbol{L}\boldsymbol{B} + i\boldsymbol{N}(\boldsymbol{B}, z)$$

@@ -4,7 +4,7 @@ from typing import Any
 
 import jax
 
-jax.config.update("jax_enable_x64", val=False)
+jax.config.update("jax_enable_x64", val=True)
 
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
@@ -19,13 +19,13 @@ memory = Memory(location=".cache", verbose=0)
 
 @dataclass
 class SimulationConfig:
-    shg_len: float = 15000.0
-    sfg_len: float = 15000.0
+    shg_len: float = 10000.0
+    sfg_len: float = 7500.0
     kappa_shg_base: float = 1.5e-5 / (2 / jnp.pi)
     temperature: float = 70.0
     wavelength: float = 1.064
     input_power: float = 10.0
-    block_size: int = 31
+    block_size: int = 100
 
 
 @dataclass
@@ -71,7 +71,7 @@ def setup_structure(config: SimulationConfig) -> SimulationStructure:
     kappa_shg_vals = config.kappa_shg_base * sign_pattern
     kappa_sfg_vals = kappa_sfg * sign_pattern
 
-    p_in = jnp.array([jnp.sqrt(config.input_power), 0.0, 0.0], dtype=jnp.complex64)
+    p_in = jnp.array([jnp.sqrt(config.input_power), 0.0, 0.0], dtype=jnp.complex128)
     z_coords = jnp.concatenate([jnp.array([0.0]), jnp.cumsum(domain_widths)])
 
     return SimulationStructure(
@@ -96,7 +96,7 @@ def calculate_mse(res: SimulationResult, ref: SimulationResult) -> tuple[float, 
 def run_perturbation(struct: SimulationStructure) -> tuple[SimulationResult, float]:
     # Warmup
     print("Warming up JIT...")
-    cwes2.simulate_super_step_with_trace(
+    cwes2.simulate_lfaga_with_trace(
         struct.domain_widths,
         struct.kappa_shg_vals,
         struct.kappa_sfg_vals,
@@ -107,7 +107,7 @@ def run_perturbation(struct: SimulationStructure) -> tuple[SimulationResult, flo
     )[1].block_until_ready()
     print("Warmup complete.")
     start_time = time.perf_counter()
-    _, trace = cwes2.simulate_super_step_with_trace(
+    _, trace = cwes2.simulate_lfaga_with_trace(
         struct.domain_widths,
         struct.kappa_shg_vals,
         struct.kappa_sfg_vals,
@@ -234,6 +234,7 @@ def run_scipy_ode(struct: SimulationStructure, *, verification: bool = True) -> 
 
     return SimulationResult(z=t, a1=a1, a2=a2, a3=a3, total_power=total_power), elapsed_time
 
+
 def plot_results_notext(
     pert_res: SimulationResult,
     scipy_res: SimulationResult,
@@ -246,7 +247,7 @@ def plot_results_notext(
     # 凡例のフォントサイズを32に設定
     plt.rcParams.update({"legend.fontsize": 32})
 
-    plt.figure(figsize=(20, 15)) # 凡例が大きくなるため、少し横幅を広げました
+    plt.figure(figsize=(20, 15))  # 凡例が大きくなるため、少し横幅を広げました
 
     # FW (A1)
     ax1 = plt.subplot(3, 1, 1)
@@ -281,6 +282,7 @@ def plot_results_notext(
     plt.tight_layout()
     plt.savefig(filename)
     print(f"Plot saved to {filename} with large legends (font size 32).")
+
 
 def plot_results(  # noqa: PLR0913
     pert_res: SimulationResult,
