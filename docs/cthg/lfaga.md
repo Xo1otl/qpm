@@ -1,5 +1,5 @@
 # Overview
-Derivation of **Prediction Scheme** via **LCAA** from **Coupled-Wave Equations**.
+Derivation of **Prediction Scheme** via **LCGAA** from **Coupled-Wave Equations**.
 
 # Coupled-Wave Equations
 $$
@@ -8,7 +8,7 @@ $$
 \frac{d A_3}{dz} = i \left[ 3 \kappa_{SFG}(z) A_1 A_2 e^{-i\Delta k_{SFG} z} \right]
 $$
 
-# Local Constant Amplitude Approximation
+# Local Constant Gradient Amplitude Approximation
 Fixed amplitude within integral $z \in [z_n, z_{n+1}]$.
 $$A_j(z) \approx A_j(z_n)$$
 
@@ -19,9 +19,7 @@ $$\mathcal{F}[\kappa](\omega) = \int_{z_n}^{z_n+h} \kappa(z) e^{i\omega z} dz$$
 Substitute approximation into integrated ODEs.
 
 $$
-\begin{aligned}
-A_1(z_{n+1}) &= A_1 + i \left[ A_2 A_1^* \mathcal{F}[\kappa_{SHG}](\Delta k_{SHG}) + A_3 A_2^* \mathcal{F}[\kappa_{SFG}](\Delta k_{SFG}) \right] \\
-A_2(z_{n+1}) &= A_2 + i \left[ A_1^2 \mathcal{F}[\kappa_{SHG}](-\Delta k_{SHG}) + 2 A_3 A_1^* \mathcal{F}[\kappa_{SFG}](\Delta k_{SFG}) \right] \\
-A_3(z_{n+1}) &= A_3 + i \left[ 3 A_1 A_2 \mathcal{F}[\kappa_{SFG}](-\Delta k_{SFG}) \right]
-\end{aligned}
+A_1(z_{n+1}) = A_1 + i \left[ A_2 A_1^* \mathcal{F}[\kappa_{SHG}](\Delta k_{SHG}) + A_3 A_2^* \mathcal{F}[\kappa_{SFG}](\Delta k_{SFG}) \right] \\
+A_2(z_{n+1}) = A_2 + i \left[ A_1^2 \mathcal{F}[\kappa_{SHG}](-\Delta k_{SHG}) + 2 A_3 A_1^* \mathcal{F}[\kappa_{SFG}](\Delta k_{SFG}) \right] \\
+A_3(z_{n+1}) = A_3 + i \left[ 3 A_1 A_2 \mathcal{F}[\kappa_{SFG}](-\Delta k_{SFG}) \right] \\
 $$

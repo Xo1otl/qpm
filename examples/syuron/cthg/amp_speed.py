@@ -18,7 +18,7 @@ class SimulationConfig:
     temperature: float = 70.0
     wavelength: float = 1.064
     input_power: float = 10.0
-    block_size: int = 25
+    block_size: int = 100
 
 
 @dataclass
@@ -70,9 +70,9 @@ def setup_structure(config: SimulationConfig) -> SimulationStructure:
     )
 
 
-def run_perturbation(struct: SimulationStructure) -> tuple[jax.Array, float]:
+def run_lfaga(struct: SimulationStructure) -> tuple[jax.Array, float]:
     print("Warming up JIT...")
-    cwes2.simulate_super_step(
+    cwes2.simulate_lfaga(
         struct.domain_widths,
         struct.kappa_shg_vals,
         struct.kappa_sfg_vals,
@@ -83,7 +83,7 @@ def run_perturbation(struct: SimulationStructure) -> tuple[jax.Array, float]:
     ).block_until_ready()
     print("Warmup complete.")
     start_time = time.time()
-    b_final = cwes2.simulate_super_step(
+    b_final = cwes2.simulate_lfaga(
         struct.domain_widths,
         struct.kappa_shg_vals,
         struct.kappa_sfg_vals,
@@ -179,9 +179,9 @@ def main() -> None:
     print(f"Structure setup complete. Num domains: {len(struct.domain_widths)}")
 
     # 1. Perturbation Simulation
-    a3_pert_val, time_pert = run_perturbation(struct)
-    a3_pert = jnp.abs(a3_pert_val)
-    print(f"Perturbation simulation time: {time_pert:.6f} s, |a3| = {a3_pert:.6e}")
+    a3_lfaga_val, time_lfaga = run_lfaga(struct)
+    a3_lfaga = jnp.abs(a3_lfaga_val)
+    print(f"Perturbation simulation time: {time_lfaga:.6f} s, |a3| = {a3_lfaga:.6e}")
 
     # 2. NPDA Simulation
     a3_npda_val, time_npda = run_npda(struct)
@@ -193,8 +193,8 @@ def main() -> None:
     print(f"SciPy ODE (RK45) time:        {time_scipy:.6f} s, |a3| = {a3_scipy:.6e}")
 
     # 4. SciPy ODE Simulation (Ground Truth)
-    a3_gt, time_gt = run_scipy_ode(struct, method="DOP853", rtol=1e-8, atol=1e-8)
-    print(f"SciPy ODE (DOP853/GT) time:   {time_gt:.6f} s, |a3| = {a3_gt:.6e}")
+    # a3_gt, time_gt = run_scipy_ode(struct, method="DOP853", rtol=1e-8, atol=1e-8)
+    # print(f"SciPy ODE (DOP853/GT) time:   {time_gt:.6f} s, |a3| = {a3_gt:.6e}")
 
 
 if __name__ == "__main__":

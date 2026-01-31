@@ -1,5 +1,4 @@
 import functools
-
 import jax
 import jax.numpy as jnp
 from jax import lax
@@ -7,71 +6,65 @@ from jax import lax
 OMEGA_SMALL_EPS: float = 1e-9
 
 
-def _calc_global_structure_factors_pair(
-    widths_block: jax.Array,
-    kappa_block: jax.Array,
-    omega: jax.Array,
-    z_global: jax.Array,
-) -> tuple[jax.Array, jax.Array]:
+def _precompute_structure_factors_all(
+    widths: jax.Array,
+    kappas: jax.Array,
+    omegas: jax.Array,
+    block_size: int,
+) -> jax.Array:
     """
-    Computes global Phase-Weighted Integrals F[kappa](omega) and F[kappa](-omega)
-    simultaneously using conjugate symmetry.
+    Computes structure factors for all channels simultaneously.
 
-    F_global(w) = exp(i w z_global) * F_local(w)
-                = exp(i w z(0)) * integral_{0}^{h} kappa(z') exp(i w z') dz'
-                = integral_{0}^{h} kappa(z') exp(i w (z_global + z')) dz'
+    Args:
+        widths: (N,) array of domain widths.
+        kappas: (C, N) array of kappa values for each channel.
+        omegas: (C,) array of frequency mismatches for each channel.
+        block_size: integer used for grouping.
 
     Returns:
-        f_pos: F[kappa](omega)
-        f_neg: F[kappa](-omega)
+        factors: (C, N // block_size) array of structure factors.
     """
-    # 1. Compute global boundaries: [z_g, z_g+z1, ..., z_g+h]
-    # widths_block shape: (M,)
-    # boundaries shape: (M+1,)
-    # Note: jnp.cumsum is inclusive.
-    local_boundaries = jnp.pad(jnp.cumsum(widths_block), (1, 0), constant_values=0.0)
-    global_boundaries = local_boundaries + z_global
+    # 1. Compute cumulative positions
+    # z_nodes[0] = 0, z_nodes[i] = sum(w[:i])
+    # Shape: (N+1,)
+    z_nodes = jnp.pad(jnp.cumsum(widths), (1, 0), constant_values=0.0)
 
-    # 2. Compute exponentials: exp(i * omega * global_boundaries)
-    # This is the most expensive step.
-    # shape: (M+1,)
-    phases = 1j * omega * global_boundaries
-    exps_pos = jnp.exp(phases)
+    # 2. Compute exponentials
+    # Shape: (C, N+1)
+    # Broadcast omegas against z_nodes
+    phases = 1j * omegas[:, None] * z_nodes[None, :]
+    exps = jnp.exp(phases)
 
-    # 3. Differences: exp(i w Z_{j+1}) - exp(i w Z_j)
-    # shape: (M,)
-    diffs_pos = exps_pos[1:] - exps_pos[:-1]
+    # 3. Compute domain integrals
+    # integral = kappa * (exp(i w z_{n+1}) - exp(i w z_n)) / (i w)
+    # Shape: (C, N)
+    diffs = exps[:, 1:] - exps[:, :-1]
 
-    # 4. Weighted sums
-    # Positive freq
-    sum_pos = jnp.dot(kappa_block, diffs_pos)
+    # Handle omega close to 0
+    # Shape: (C, 1) to broadcast against (C, N)
+    inv_iw = 1.0 / (1j * omegas[:, None])
 
-    # Negative freq (-omega)
-    # exp(-i w z) = conj(exp(i w z)) => diffs(-w) = conj(diffs(w))
-    # We use conj(diffs_pos)
-    diffs_neg = jnp.conj(diffs_pos)
-    sum_neg = jnp.dot(kappa_block, diffs_neg)
+    # Standard case
+    vals_main = kappas * diffs * inv_iw
 
-    # 5. Normalize by +/- i*omega
-    # Handle small omega case
-    # If partial(jax.jit) is used, this branching is symbolic.
+    # Small omega case: integral -> kappa * width
+    # widths broadcasts to (C, N)
+    vals_small = kappas * widths[None, :]
 
-    # Precompute factors
-    inv_iw = 1.0 / (1j * omega)
+    # Select based on omega magnitude
+    # is_small: (C, 1)
+    is_small = jnp.abs(omegas[:, None]) < OMEGA_SMALL_EPS
+    factors_domains = jnp.where(is_small, vals_small, vals_main)
 
-    val_pos = sum_pos * inv_iw
-    val_neg = sum_neg * (-inv_iw)  # divide by -iw is * -1/iw
+    # 4. Sum into blocks
+    # Reshape to (C, n_blocks, block_size) and sum over last axis
+    n_blocks = widths.shape[0] // block_size
+    # C is likely 4
+    C = kappas.shape[0]
+    factors_reshaped = factors_domains.reshape(C, n_blocks, block_size)
+    factors_blocks = jnp.sum(factors_reshaped, axis=2)
 
-    # Small omega fallback (integral of kappa)
-    # limit sum_pos / iw -> sum(kappa * h)
-    val_zero = jnp.dot(kappa_block, widths_block)
-
-    # Use 'where' for safety
-    is_small = jnp.abs(omega) < OMEGA_SMALL_EPS
-    f_pos = jnp.where(is_small, val_zero, val_pos)
-    f_neg = jnp.where(is_small, val_zero, val_neg)
-
-    return f_pos, f_neg
+    return factors_blocks
 
 
 def _lfaga_step_update(
@@ -79,7 +72,7 @@ def _lfaga_step_update(
     f_factors: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
 ) -> jax.Array:
     """
-    Updates envelopes A using the LFAGA scheme.
+    Updates envelopes A using the LFAGA scheme with precomputed factors.
     """
     a1, a2, a3 = a_curr
     f_shg, f_sfg, f_neg_shg, f_neg_sfg = f_factors
@@ -97,48 +90,27 @@ def _lfaga_step_update(
 
 
 @functools.partial(jax.jit, static_argnames=["return_trace"])
-def _lfaga_kernel(  # noqa: PLR0913
-    widths_padded: jax.Array,
-    kappa_shg_padded: jax.Array,
-    kappa_sfg_padded: jax.Array,
-    delta_k1: jax.Array,
-    delta_k2: jax.Array,
+def _lfaga_scan_loop(
     a_initial: jax.Array,
+    f_shg_series: jax.Array,
+    f_sfg_series: jax.Array,
+    f_neg_shg_series: jax.Array,
+    f_neg_sfg_series: jax.Array,
     *,
     return_trace: bool,
 ) -> tuple[jax.Array, jax.Array | None]:
-    # scan over blocks
-    def scan_body(
-        carry: tuple[jax.Array, jax.Array], block_data: tuple[jax.Array, jax.Array, jax.Array]
-    ) -> tuple[tuple[jax.Array, jax.Array], jax.Array | None]:
-        a_curr, z_global = carry
-        w_block, k_shg_block, k_sfg_block = block_data
-
-        h_total = jnp.sum(w_block)
-
-        # 1. Compute Global Structure Factors directly
-        # Returns (F[w], F[-w]) pairs
-        f_shg, f_neg_shg = _calc_global_structure_factors_pair(w_block, k_shg_block, delta_k1, z_global)
-        f_sfg, f_neg_sfg = _calc_global_structure_factors_pair(w_block, k_sfg_block, delta_k2, z_global)
-
-        # 2. Update Step
-        f_factors = (f_shg, f_sfg, f_neg_shg, f_neg_sfg)
-        a_next = _lfaga_step_update(a_curr, f_factors)
-
-        # Update global z
-        z_next = z_global + h_total
-
-        new_carry = (a_next, z_next)
+    def scan_body(a_curr: jax.Array, factors: tuple[jax.Array, jax.Array, jax.Array, jax.Array]) -> tuple[jax.Array, jax.Array | None]:
+        a_next = _lfaga_step_update(a_curr, factors)
         track_val = a_next if return_trace else None
-        return new_carry, track_val
+        return a_next, track_val
 
-    scan_data = (widths_padded, kappa_shg_padded, kappa_sfg_padded)
-    init_carry = (a_initial, jnp.array(0.0))
+    # Zip the factors for scanning
+    xs = (f_shg_series, f_sfg_series, f_neg_shg_series, f_neg_sfg_series)
 
-    (a_final, _), a_stacked = lax.scan(scan_body, init_carry, scan_data, unroll=20)
+    a_final, a_stacked = lax.scan(scan_body, a_initial, xs, unroll=20)
 
     if return_trace and a_stacked is not None:
-        full_trace = jnp.vstack([a_initial, a_stacked])
+        full_trace = jnp.vstack([a_initial[None, :], a_stacked])
         return a_final, full_trace
 
     return a_final, None
@@ -176,11 +148,11 @@ def simulate_lfaga(  # noqa: PLR0913
 ) -> jax.Array:
     """
     Simulates CTHG using the LFAGA (Longitudinal Fourier Averaged Global Approximation) method.
-    Optimized for binary (piecewise constant) waves.
+    Optimized for binary waves, using vectorized parallel structure factor computation.
     """
     _validate_inputs(domain_widths, kappa_shg_vals, kappa_sfg_vals, a_initial)
 
-    # Pad to multiple of block_size
+    # Pad inputs if necessary
     n_domains = domain_widths.shape[0]
     remainder = n_domains % block_size
     if remainder != 0:
@@ -193,12 +165,23 @@ def simulate_lfaga(  # noqa: PLR0913
         k_shg_new = kappa_shg_vals
         k_sfg_new = kappa_sfg_vals
 
-    n_blocks = widths_new.shape[0] // block_size
-    w_matrix = widths_new.reshape(n_blocks, block_size)
-    k_shg_matrix = k_shg_new.reshape(n_blocks, block_size)
-    k_sfg_matrix = k_sfg_new.reshape(n_blocks, block_size)
+    # Prepare stacked inputs for single-pass precomputation
+    # Channels: 0: SHG(+), 1: SFG(+), 2: SHG(-), 3: SFG(-)
+    kappas_stack = jnp.stack([k_shg_new, k_sfg_new, k_shg_new, k_sfg_new])
+    omegas_stack = jnp.array([delta_k1, delta_k2, -delta_k1, -delta_k2])
 
-    a_final, _ = _lfaga_kernel(w_matrix, k_shg_matrix, k_sfg_matrix, delta_k1, delta_k2, a_initial, return_trace=False)
+    # Compute all factors in one go
+    # Shape: (4, N_blocks)
+    factors_all = _precompute_structure_factors_all(widths_new, kappas_stack, omegas_stack, block_size)
+
+    # Unpack
+    f_shg = factors_all[0]
+    f_sfg = factors_all[1]
+    f_neg_shg = factors_all[2]
+    f_neg_sfg = factors_all[3]
+
+    # Run scan
+    a_final, _ = _lfaga_scan_loop(a_initial, f_shg, f_sfg, f_neg_shg, f_neg_sfg, return_trace=False)
 
     return a_final
 
@@ -214,10 +197,10 @@ def simulate_lfaga_with_trace(  # noqa: PLR0913
 ) -> tuple[jax.Array, jax.Array]:
     """
     Simulates CTHG using the LFAGA method and returns trace.
-    Optimized for binary (piecewise constant) waves.
     """
     _validate_inputs(domain_widths, kappa_shg_vals, kappa_sfg_vals, a_initial)
 
+    # Pad inputs if necessary
     n_domains = domain_widths.shape[0]
     remainder = n_domains % block_size
     if remainder != 0:
@@ -230,11 +213,19 @@ def simulate_lfaga_with_trace(  # noqa: PLR0913
         k_shg_new = kappa_shg_vals
         k_sfg_new = kappa_sfg_vals
 
-    n_blocks = widths_new.shape[0] // block_size
-    w_matrix = widths_new.reshape(n_blocks, block_size)
-    k_shg_matrix = k_shg_new.reshape(n_blocks, block_size)
-    k_sfg_matrix = k_sfg_new.reshape(n_blocks, block_size)
+    # Prepare stacked inputs
+    kappas_stack = jnp.stack([k_shg_new, k_sfg_new, k_shg_new, k_sfg_new])
+    omegas_stack = jnp.array([delta_k1, delta_k2, -delta_k1, -delta_k2])
 
-    a_final, trace = _lfaga_kernel(w_matrix, k_shg_matrix, k_sfg_matrix, delta_k1, delta_k2, a_initial, return_trace=True)
+    # Compute all factors
+    factors_all = _precompute_structure_factors_all(widths_new, kappas_stack, omegas_stack, block_size)
+
+    f_shg = factors_all[0]
+    f_sfg = factors_all[1]
+    f_neg_shg = factors_all[2]
+    f_neg_sfg = factors_all[3]
+
+    # Run scan
+    a_final, trace = _lfaga_scan_loop(a_initial, f_shg, f_sfg, f_neg_shg, f_neg_sfg, return_trace=True)
 
     return a_final, trace
