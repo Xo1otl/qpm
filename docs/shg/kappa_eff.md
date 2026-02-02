@@ -23,7 +23,7 @@ $$
 
 # 3. Continuum Limit
 $$
-A_2(L) \approx i \frac{\kappa_{\text{mat}}}{\Lambda_0} A_1^2 \int_0^L \left[ (-1)^m \mathcal{F}[S(z)](-G_m) e^{i G_m \delta(z)} \right] e^{i \Delta \beta z} dz
+A_2(L) \approx i \kappa_{\text{mat}} A_1^2 \frac{1}{\Lambda_0} \sum_{n=0}^{N-1} \left[ (-1)^m \mathcal{F}[S_n](-G_m) e^{i G_m \delta_n} \right] e^{i \Delta \beta z_n} \Lambda_0 \approx i \frac{\kappa_{\text{mat}}}{\Lambda_0} A_1^2 \int_0^L \left[ (-1)^m \mathcal{F}[S(z)](-G_m) e^{i G_m \delta(z)} \right] e^{i \Delta \beta z} dz
 $$
 
 # 4. Generalized $\kappa_{\text{eff}}$
@@ -46,3 +46,10 @@ $$
 $$
 |\mathcal{F}[S(z)](-G_m)| = \frac{\Lambda_0 A_{\text{target}}(z)}{\kappa_{\text{mat}}}
 $$
+
+# Key Concerns
+The amplitude term should be explicitly written as a function of $z$. 
+The current notation $\mathcal{F}[S(z)](-G_m)$ looks constant, but the shape $S$ changes along the propagation axis. 
+
+# Task
+Correct formulation.
