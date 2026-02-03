@@ -14,16 +14,16 @@ jax.config.update("jax_enable_x64", val=True)
 class SimulationConfig:
     """Configuration for the SHG simulation."""
 
-    num_periods: int = 20000
+    num_periods: int = 10000
     design_wl: float = 1.064
     design_temp: float = 70.0
-    wl_start: float = 1.02
-    wl_end: float = 1.108
-    wl_points: int = 100000
+    wl_start: float = 1.05
+    wl_end: float = 1.08
+    wl_points: int = 50000
     kappa_mag: float = 1.5e-5 / (2 / jnp.pi)
 
     # Comb specific
-    comb_modes: int = 50  # Number of sidebands on each side (Total 2*M + 1)
+    comb_modes: int = 15  # Number of sidebands on each side (Total 2*M + 1)
     comb_spacing_nm: float = 0.5  # Spacing between modes in nm
 
 

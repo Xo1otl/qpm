@@ -1,5 +1,5 @@
 # Overview
-Derivation of **Super-Step SSFM(S4M)** for **Coupled-Wave Equations** accelerated by PECC.
+Derivation of **Super-Step SSFM(S4M)** for **Coupled-Wave Equations** accelerated by LECC.
 
 # NLSE Coupled-Wave Equations
 System defined by operator splitting of **Linear** ($\hat{D}$) and **Nonlinear** ($\hat{N}$) effects.
@@ -16,10 +16,10 @@ $$\tilde{A}_j(z, \omega) = \text{FFT}[A_j(z, t)]$$
 $$\tilde{A}_j^{(1)}(z, \omega) = \tilde{A}_j(z, \omega) \exp\left[ -i \left( \frac{\omega}{v_{gj}} + \frac{\beta_{2,j}\omega^2}{2} \right) \frac{h}{2} \right]$$
 $$A_j^{(1)}(z, t) = \text{IFFT}[\tilde{A}_j^{(1)}(z, \omega)]$$
 
-# Piecewise Effective Coupling Coefficient
+# Local Effective Coupling Coefficient
 Integration of $\hat{N}$ strictly in spatial domain. Time $t$ parameterized; envelope $A_j$ frozen relative to $\kappa(z)$.
 
-**Structure Factor Definition:**
+**LECC Definition:**
 $$\mathcal{F}[\kappa](\Omega) \equiv \int_{z}^{z+h} \kappa(z') e^{i \Omega z'} dz'$$
 
 **Update Equations (SHG):**
