@@ -1,5 +1,5 @@
 # Overview
-**Baseline Expression** vs **LECC Reformulation** for Holographic QPM (Corrected).
+**LECC Reformulation** from **Baseline Expression** for Holographic QPM.
 
 # Baseline Expression
 Standard QPM integral for SHG (continuum limit).
@@ -30,5 +30,4 @@ $$\kappa_{\text{leff}} \propto e^{i \Delta k \delta} \tilde{K}(-\Delta k)$$
 $$|\tilde{K}(-\Delta k)| = \text{Target Amplitude}$$
 
 **2. Phase Control (Position)**
-Note the sign change in the shift term ($e^{+i \Delta k \delta}$).
 $$\Delta k \cdot \delta + \arg(\tilde{K}) = \text{Target Phase}$$
