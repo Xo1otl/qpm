@@ -1,52 +1,84 @@
-import jax
-import jax.numpy as jnp
 import matplotlib.pyplot as plt
-from qpm import cwes, mgoslt
 import numpy as np
 
-jax.config.update("jax_enable_x64", val=True)
+SELLMEIER_PARAMS = {
+    "a": np.array([4.5615, 0.08488, 0.1927, 5.5832, 8.3067, 0.021696]),
+    "b": np.array([4.782e-07, 3.0913e-08, 2.7326e-08, 1.4837e-05, 1.3647e-07]),
+}
+
+
+def sellmeier_n_eff(wl: np.ndarray, temp: float) -> np.ndarray:
+    f = (temp - 24.5) * (temp + 24.5 + 2.0 * 273.16)
+    lambda_sq = wl**2
+    a, b = SELLMEIER_PARAMS["a"], SELLMEIER_PARAMS["b"]
+    n_sq = (
+        a[0]
+        + b[0] * f
+        + (a[1] + b[1] * f) / (lambda_sq - (a[2] + b[2] * f) ** 2)
+        + (a[3] + b[3] * f) / (lambda_sq - (a[4] + b[4] * f) ** 2)
+        - a[5] * lambda_sq
+    )
+    return np.sqrt(n_sq)
+
+
+def calc_twm_delta_k(wl1: np.ndarray, wl2: np.ndarray, t: float) -> np.ndarray:
+    wl_sum = (wl1 * wl2) / (wl1 + wl2)
+    n1 = sellmeier_n_eff(wl1, t)
+    n2 = sellmeier_n_eff(wl2, t)
+    n_sum = sellmeier_n_eff(wl_sum, t)
+
+    return 2.0 * np.pi * (n_sum / wl_sum - n1 / wl1 - n2 / wl2)
+
+
+def calculate_local_shg_amplitudes(
+    domain_widths: np.ndarray,
+    kappa_vals: np.ndarray,
+    delta_k: np.ndarray,
+    b_initial: complex,
+) -> np.ndarray:
+    gamma = delta_k / 2.0
+    a_omega_sq = b_initial**2
+    gamma_l = gamma * domain_widths
+    sinc_term = np.sinc(gamma_l / np.pi)
+    return -1j * kappa_vals * a_omega_sq * domain_widths * np.exp(1j * gamma_l) * sinc_term
+
+
+def simulate_shg_npda(
+    domain_widths: np.ndarray,
+    kappa_vals: np.ndarray,
+    delta_k: np.ndarray,
+    b_initial: complex,
+) -> np.ndarray:
+    dk_col = delta_k[:, np.newaxis]
+    w_row = domain_widths[np.newaxis, :]
+    k_row = kappa_vals[np.newaxis, :]
+    local_amplitudes = calculate_local_shg_amplitudes(w_row, k_row, dk_col, b_initial)
+    z_starts = np.concatenate([np.array([0.0]), np.cumsum(domain_widths[:-1])])
+    z_starts_row = z_starts[np.newaxis, :]
+    phase_factors = np.exp(1j * dk_col * z_starts_row)
+    return np.sum(local_amplitudes * phase_factors, axis=1)
 
 
 def merge_and_filter_domains(widths, kappas, threshold=1.0e-6):
-    """
-    Merges adjacent same-sign domains and filters small ones.
-    Uses vectorized operations for the initial merge (RLE).
-    """
-    # ensure inputs are jax/numpy arrays
-    widths = jnp.array(widths)
-    kappas = jnp.array(kappas)
+    widths = np.array(widths)
+    kappas = np.array(kappas)
 
     if len(widths) == 0:
-        return jnp.array([]), jnp.array([])
+        return np.array([]), np.array([])
 
-    # 1. Fast Vectorized Merge (Run-Length Encoding)
-    # Identify indices where kappa changes or it's the end of the array
-    # kappas[:-1] != kappas[1:] creates a boolean mask of changes
-    is_change = jnp.concatenate((kappas[:-1] != kappas[1:], jnp.array([True])))
+    is_change = np.concatenate((kappas[:-1] != kappas[1:], np.array([True])))
+    end_indices = np.where(is_change)[0]
 
-    # Indices where a domain ENDS
-    end_indices = jnp.where(is_change)[0]
-
-    # Cumulative sum of widths allows us to calculating merged widths by differencing
-    cum_widths = jnp.cumsum(widths)
+    cum_widths = np.cumsum(widths)
     boundaries = cum_widths[end_indices]
 
-    # Calculate merged widths
-    # Prepend 0 to boundaries to compute diffs
-    merged_widths = jnp.diff(jnp.concatenate((jnp.array([0.0]), boundaries)))
-
-    # Calculate merged kappas (just take the value at the end index)
+    merged_widths = np.diff(np.concatenate((np.array([0.0]), boundaries)))
     merged_kappas = kappas[end_indices]
 
     print(f"Initial Reduce: {len(widths)} -> {len(merged_widths)} domains")
 
-    # 2. Filter small domains
-    # Since the number of domains is now small (~2000 vs 30000),
-    # a Python loop is efficient enough and easier to handle the
-    # complex logic of deleting and merging neighbors.
-
-    w_list = np.array(merged_widths).tolist()
-    k_list = np.array(merged_kappas).tolist()
+    w_list = merged_widths.tolist()
+    k_list = merged_kappas.tolist()
 
     changed = True
     iteration = 0
@@ -56,45 +88,34 @@ def merge_and_filter_domains(widths, kappas, threshold=1.0e-6):
         i = 0
         while i < len(w_list):
             if w_list[i] < threshold:
-                # Need to merge w_list[i] into neighbors
-                # Case 1: Start of array
+                # Merge logic
                 if i == 0:
                     if len(w_list) > 1:
-                        # [small, Big, ...] -> [Big+small, ...]
-                        # effectively small becomes part of Big's domain
                         w_list[1] += w_list[i]
                         w_list.pop(0)
                         k_list.pop(0)
                         changed = True
                         continue
                     else:
-                        # Only one domain left and it's small? just keep it or remove?
-                        # If we remove, we have nothing. Keep it.
                         i += 1
-                # Case 2: End of array
                 elif i == len(w_list) - 1:
-                    # [..., Big, small] -> [..., Big+small]
                     w_list[i - 1] += w_list[i]
                     w_list.pop(i)
                     k_list.pop(i)
                     changed = True
                     continue
-                # Case 3: Middle
                 else:
-                    # [Left, small, Right]
-                    # Since we merged same-signs in step 1, Left and Right MUST have
-                    # opposite sign to small. Thus Left and Right have SAME sign.
-                    # We merge [Left, small, Right] -> [Left + small + Right]
+                    # [Left, small, Right] -> [Left + small + Right]
                     w_list[i - 1] += w_list[i] + w_list[i + 1]
                     w_list.pop(i)  # remove small
-                    w_list.pop(i)  # remove Right (which is now at i)
+                    w_list.pop(i)  # remove Right
                     k_list.pop(i)  # remove small kappa
                     k_list.pop(i)  # remove Right kappa
                     changed = True
                     continue
             i += 1
 
-    return jnp.array(w_list), jnp.array(k_list)
+    return np.array(w_list), np.array(k_list)
 
 
 def main():
@@ -102,12 +123,12 @@ def main():
     num_periods = 10000
     design_wl = 1.064
     design_temp = 70.0
-    kappa_mag = 1.31e-5 / (2 / jnp.pi)
+    kappa_mag = 1.31e-5 / (2 / np.pi)
     spatial_sigma_ratio = 8.0
 
     # Physics parameters
-    dk_val = mgoslt.calc_twm_delta_k(design_wl, design_wl, design_temp)
-    Lp = 2 * (jnp.pi / dk_val)
+    dk_val = calc_twm_delta_k(np.array(design_wl), np.array(design_wl), design_temp)
+    Lp = 2 * (np.pi / dk_val)
     Lc = Lp / 2
     res_nm = Lc * 1000
     dx_um = res_nm / 1000.0
@@ -116,41 +137,43 @@ def main():
 
     # --- 1. Inverse Design (Gaussian) ---
     L_total = num_periods * Lp
-    z_period_centers = (jnp.arange(num_periods) + 0.5) * Lp
+    z_period_centers = (np.arange(num_periods) + 0.5) * Lp
     z_n = z_period_centers - L_total / 2.0
     spatial_sigma = L_total / spatial_sigma_ratio
-    target_profile = jnp.exp(-(z_n**2) / (2 * (spatial_sigma**2)))
-    norm_profile = target_profile / jnp.max(jnp.abs(target_profile))
-    d_n = jnp.arcsin(jnp.abs(norm_profile)) / jnp.pi
-    sign_profile = jnp.sign(norm_profile)
+    target_profile = np.exp(-(z_n**2) / (2 * (spatial_sigma**2)))
+    norm_profile = target_profile / np.max(np.abs(target_profile))
+    d_n = np.arcsin(np.abs(norm_profile)) / np.pi
+    sign_profile = np.sign(norm_profile)
 
     # --- 2. Quantization (Error Diffusion) ---
-    num_steps = int(jnp.ceil(Lp / dx_um))
-    possible_widths = jnp.arange(num_steps + 1) * dx_um
+    num_steps = int(np.ceil(Lp / dx_um))
+    possible_widths = np.arange(num_steps + 1) * dx_um
     possible_widths = possible_widths[possible_widths <= Lp + 1e-9]
     possible_duties = possible_widths / Lp
-    possible_effs = jnp.sin(jnp.pi * possible_duties)
-    target_effs = jnp.sin(jnp.pi * d_n)
+    possible_effs = np.sin(np.pi * possible_duties)
+    target_effs = np.sin(np.pi * d_n)
 
-    def scan_body(carry, target):
-        accum_error = carry
+    d_dithered = np.zeros_like(target_effs)
+    accum_error = 0.0
+
+    for i, target in enumerate(target_effs):
         desired = target + accum_error
-        diffs = jnp.abs(possible_effs - desired)
-        path_idx = jnp.argmin(diffs)
+        diffs = np.abs(possible_effs - desired)
+        path_idx = np.argmin(diffs)
         chosen_eff = possible_effs[path_idx]
         chosen_duty = possible_duties[path_idx]
-        new_error = desired - chosen_eff
-        return new_error, chosen_duty
 
-    _, d_dithered = jax.lax.scan(scan_body, 0.0, target_effs)
+        d_dithered[i] = chosen_duty
+        accum_error = desired - chosen_eff
 
     # Construct Initial Geometry
     gap_widths = (1 - d_dithered) * Lp / 2.0
     pulse_widths = d_dithered * Lp
-    widths = jnp.column_stack((gap_widths, pulse_widths, gap_widths)).ravel()
+    widths = np.column_stack((gap_widths, pulse_widths, gap_widths)).ravel()
 
-    base_signs = jnp.tile(jnp.array([1.0, -1.0, 1.0]), num_periods)
-    period_signs = jnp.repeat(sign_profile, 3)
+    base_signs = np.tile(np.array([1.0, -1.0, 1.0]), num_periods)
+    # repeat sign_profile 3 times
+    period_signs = np.repeat(sign_profile, 3)
     kappas = kappa_mag * base_signs * period_signs
 
     # --- 2b. Merge and Filter ---
@@ -158,31 +181,32 @@ def main():
     final_widths, final_kappas = merge_and_filter_domains(widths, kappas, threshold=1e-2)
     print(f"Original segments: {len(widths)}, Final domains: {len(final_widths)}")
     if len(final_widths) > 0:
-        print(f"Min width after filtering: {jnp.min(final_widths):.4e} um")
+        print(f"Min width after filtering: {np.min(final_widths):.4e} um")
 
     # --- 3. Simulation ---
     wl_start, wl_end, wl_points = 1.0638, 1.0642, 1000
-    wls = jnp.linspace(wl_start, wl_end, wl_points)
-    dks = mgoslt.calc_twm_delta_k(wls, wls, design_temp)
-    b_initial = jnp.array(1.0 + 0.0j)
+    wls = np.linspace(wl_start, wl_end, wl_points)
+    dks = calc_twm_delta_k(wls, wls, design_temp)
+    b_initial = 1.0 + 0.0j
 
     print("Running simulation...")
-    batch_simulate = jax.jit(jax.vmap(cwes.simulate_shg_npda, in_axes=(None, None, 0, None)))
-    amps = batch_simulate(final_widths, final_kappas, dks, b_initial)
-    amps.block_until_ready()
-    spectrum = jnp.abs(amps)
+    # Using vectorized NumPy implementation
+    amps = simulate_shg_npda(final_widths, final_kappas, dks, b_initial)
+    spectrum = np.abs(amps)
 
     # Calculate Target Spectrum
     print("Simulating Ideal Target...")
     d_ideal = d_n
     gap_ideal = (1 - d_ideal) * Lp / 2.0
     pulse_ideal = d_ideal * Lp
-    w_ideal = jnp.column_stack((gap_ideal, pulse_ideal, gap_ideal)).ravel()
-    amps_ideal = batch_simulate(w_ideal, kappas, dks, b_initial)
-    spectrum_ideal = jnp.abs(amps_ideal)
+    w_ideal = np.column_stack((gap_ideal, pulse_ideal, gap_ideal)).ravel()
+    # _ = kappa_mag * np.tile(np.array([1.0, -1.0, 1.0]), num_periods) * np.repeat(sign_profile, 3)
+
+    amps_ideal = simulate_shg_npda(w_ideal, kappas, dks, b_initial)
+    spectrum_ideal = np.abs(amps_ideal)
 
     # --- 4. Plotting ---
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
+    _, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
 
     # Plot 1: Spectra
     ax1.plot(wls, spectrum_ideal, "k--", label="Target (Ideal)", linewidth=1.5)
@@ -191,10 +215,10 @@ def main():
     ax1.set_xlabel("Wavelength (µm)")
     ax1.set_ylabel("SHG Amplitude")
     ax1.legend()
-    ax1.grid(True, alpha=0.3)
+    ax1.grid(visible=True, alpha=0.3)
 
     # Plot 2: Domain Width Distribution (Merged)
-    domain_indices = jnp.arange(len(final_widths))
+    domain_indices = np.arange(len(final_widths))
 
     # Plot ALL domains
     ax2.scatter(domain_indices, final_widths, s=1, c="b", alpha=0.5, label="Domain Widths")
@@ -208,7 +232,7 @@ def main():
     ax2.set_xlabel("Domain Index")
     ax2.set_ylabel("Domain Width (µm)")
     ax2.set_yscale("log")
-    ax2.grid(True, alpha=0.3, which="both")
+    ax2.grid(visible=True, alpha=0.3, which="both")
 
     plt.tight_layout()
     plt.savefig("dithered_Lc_demo.png", dpi=150)
