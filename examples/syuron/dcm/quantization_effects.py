@@ -345,6 +345,12 @@ def main() -> None:
 
         print(f"  [Std] Norm RMSE: {n_rmse_std:.4e} | Peak: {peak_std:.4e}")
 
+        # Export if this is the most quantized one (Lc)
+        if res_nm == config.resolutions_nm[-1]:
+            export_path = "domain_structure_Lc_std.npy"
+            jnp.save(export_path, {"widths": w_quant, "kappas": kappas})
+            print(f"Exported Standard domain structure to {export_path}")
+
         # 2. Dithered Quantization
         label_dith = f"Dith {res_nm:.0f}nm"
         print(f"Simulating {label_dith}...")
@@ -353,22 +359,13 @@ def main() -> None:
         d_n_dith = quantize_dithered_duty(d_n, Lp, dx_um)
 
         # Recalculate geometries with dithered duties
-        # Note: We must update kappas too because sign_profile is same but geometry changes?
-        # sign_profile is fixed. geometric widths change.
-        # But construct_geometry uses d_n.
         w_dith_raw, kappas_dith = construct_geometry(d_n_dith, sign_profile, Lp, config.kappa_mag)
 
-        # Important: The constructed geometry 'w_dith_raw' has widths that are theoretically consistent
-        # with dx, BUT construct_geometry centers them.
-        # If we want strictly enforce grid boundaries, we might need to quantize again?
-        # However, d_n_dith was chosen from (k*dx), so Pulse Widths ARE multiples of dx.
-        # Gap Widths? Gap = (Lp - Width)/2.
-        # If Lp is not 2*Grid, Gap might be off-grid.
-        # But for 'quantization_effects', we just run simulation with these widths.
-        # Let's see if this 'Dithered Duty' approach helps the spectrum.
-        # We DO NOT apply 'quantize_widths' on top, because that would destroy the dithering
-        # if the grid alignment is the issue.
-        # Assuming the Fab can perform these widths (which are from the allowed set).
+        # Export if this is the most quantized one (Lc)
+        if res_nm == config.resolutions_nm[-1]:
+            export_path = "domain_structure_Lc_dith.npy"
+            jnp.save(export_path, {"widths": w_dith_raw, "kappas": kappas_dith})
+            print(f"Exported Dithered domain structure to {export_path}")
 
         amps_dith = run_simulation(w_dith_raw, kappas_dith, dks)
         amps_dith.block_until_ready()
