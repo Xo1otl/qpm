@@ -25,7 +25,7 @@ class SimulationConfig:
     temperature: float = 70.0
     wavelength: float = 1.064
     input_power: float = 10.0
-    block_size: int = 170
+    block_size: int = 1445
 
 
 @dataclass
@@ -93,10 +93,10 @@ def calculate_mse(res: SimulationResult, ref: SimulationResult) -> tuple[float, 
     return float(mse1), float(mse2), float(mse3)
 
 
-def run_perturbation(struct: SimulationStructure) -> tuple[SimulationResult, float]:
+def run_magnus(struct: SimulationStructure) -> tuple[SimulationResult, float]:
     # Warmup
     print("Warming up JIT...")
-    cwes2.simulate_lfaga_with_trace(
+    cwes2.simulate_magnus_with_trace(
         struct.domain_widths,
         struct.kappa_shg_vals,
         struct.kappa_sfg_vals,
@@ -107,7 +107,7 @@ def run_perturbation(struct: SimulationStructure) -> tuple[SimulationResult, flo
     )[1].block_until_ready()
     print("Warmup complete.")
     start_time = time.perf_counter()
-    _, trace = cwes2.simulate_lfaga_with_trace(
+    _, trace = cwes2.simulate_magnus_with_trace(
         struct.domain_widths,
         struct.kappa_shg_vals,
         struct.kappa_sfg_vals,
@@ -247,35 +247,49 @@ def plot_results_notext(
     # 凡例のフォントサイズを32に設定
     plt.rcParams.update({"legend.fontsize": 32})
 
-    plt.figure(figsize=(20, 15))  # 凡例が大きくなるため、少し横幅を広げました
+    plt.figure(figsize=(20, 20))  # 4段にするため縦幅を拡張
 
     # FW (A1)
-    ax1 = plt.subplot(3, 1, 1)
+    ax1 = plt.subplot(4, 1, 1)
     plt.plot(pert_res.z, np.abs(pert_res.a1), label="Super Step", linewidth=3)
     plt.plot(scipy_res.z, np.abs(scipy_res.a1), label="RK45", linewidth=3)
     plt.plot(scipy_res_ver.z, np.abs(scipy_res_ver.a1), label="DOP853", linestyle="--", linewidth=3)
     ax1.set_xticklabels([])
     ax1.set_yticklabels([])
+    plt.ylabel("|A1|", fontsize=24)
     plt.legend(loc="upper right")
     plt.grid(visible=True, linestyle=":")
 
     # SHW (A2)
-    ax2 = plt.subplot(3, 1, 2)
+    ax2 = plt.subplot(4, 1, 2)
     plt.plot(pert_res.z, np.abs(pert_res.a2), label="Super Step", linewidth=3)
     plt.plot(scipy_res.z, np.abs(scipy_res.a2), label="RK45", linewidth=3)
     plt.plot(scipy_res_ver.z, np.abs(scipy_res_ver.a2), label="DOP853", linestyle="--", linewidth=3)
     ax2.set_xticklabels([])
     ax2.set_yticklabels([])
+    plt.ylabel("|A2|", fontsize=24)
     plt.legend(loc="upper right")
     plt.grid(visible=True, linestyle=":")
 
     # THW (A3)
-    ax3 = plt.subplot(3, 1, 3)
+    ax3 = plt.subplot(4, 1, 3)
     plt.plot(pert_res.z, np.abs(pert_res.a3), label="Super Step", linewidth=3)
     plt.plot(scipy_res.z, np.abs(scipy_res.a3), label="RK45", linewidth=3)
     plt.plot(scipy_res_ver.z, np.abs(scipy_res_ver.a3), label="DOP853", linestyle="--", linewidth=3)
     ax3.set_xticklabels([])
     ax3.set_yticklabels([])
+    plt.ylabel("|A3|", fontsize=24)
+    plt.legend(loc="upper right")
+    plt.grid(visible=True, linestyle=":")
+
+    # Total Power (Manley-Rowe)
+    ax4 = plt.subplot(4, 1, 4)
+    plt.plot(pert_res.z, pert_res.total_power, label="Super Step", linewidth=3)
+    plt.plot(scipy_res.z, scipy_res.total_power, label="RK45", linewidth=3)
+    plt.plot(scipy_res_ver.z, scipy_res_ver.total_power, label="DOP853", linestyle="--", linewidth=3)
+    ax4.set_yticklabels([])
+    plt.ylabel("Total Power", fontsize=24)
+    plt.xlabel("Position", fontsize=24)
     plt.legend(loc="upper right")
     plt.grid(visible=True, linestyle=":")
 
@@ -361,7 +375,7 @@ def main() -> None:
 
     # 2. Super Step
     print("Running Super Step...")
-    pert_res, time_pert = run_perturbation(struct)
+    pert_res, time_pert = run_magnus(struct)
     print(f"Super Step time: {time_pert:.6f} s")
 
     # 3. SciPy (RK45)

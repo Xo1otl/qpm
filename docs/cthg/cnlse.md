@@ -1,7 +1,7 @@
 # Overview
-Derivation of **Super-Step SSFM(S4M)** for **Coupled-Wave Equations** accelerated by LECC.
+Derivation of **Magnus-SSFM** for **Coupled-Wave Equations** with **Local Fourier Coupling Coefficient**.
 
-# NLSE Coupled-Wave Equations
+# Coupled-Wave Equations (CNLSE)
 System defined by operator splitting of **Linear** ($\hat{D}$) and **Nonlinear** ($\hat{N}$) effects.
 $$\frac{\partial \mathbf{A}}{\partial z} = (\hat{D} + \hat{N}) \mathbf{A}$$
 Where $\mathbf{A} = [A_1, A_2]^T$. Solution over step $h$ via symmetric splitting:
@@ -16,10 +16,10 @@ $$\tilde{A}_j(z, \omega) = \text{FFT}[A_j(z, t)]$$
 $$\tilde{A}_j^{(1)}(z, \omega) = \tilde{A}_j(z, \omega) \exp\left[ -i \left( \frac{\omega}{v_{gj}} + \frac{\beta_{2,j}\omega^2}{2} \right) \frac{h}{2} \right]$$
 $$A_j^{(1)}(z, t) = \text{IFFT}[\tilde{A}_j^{(1)}(z, \omega)]$$
 
-# Local Effective Coupling Coefficient
+# Local Fourier Coupling Coefficient
 Integration of $\hat{N}$ strictly in spatial domain. Time $t$ parameterized; envelope $A_j$ frozen relative to $\kappa(z)$.
 
-**LECC Definition:**
+**LFCC Definition:**
 $$\mathcal{F}[\kappa](\Omega) \equiv \int_{z}^{z+h} \kappa(z') e^{i \Omega z'} dz'$$
 
 **Update Equations (SHG):**
@@ -30,3 +30,6 @@ $$A_2^{(2)}(z, t) = A_2^{(1)} + i (A_1^{(1)})^2 \mathcal{F}[\kappa](+\Delta k)$$
 # Convergence Criterion
 Step size $h$ constrained by **Walk-off** and **Dispersion**, not Grating Period $\Lambda$.
 $$h \ll \min \left( \frac{\tau_p}{|v_{g1}^{-1} - v_{g2}^{-1}|}, \frac{\tau_p^2}{|\beta_2|} \right)$$
+
+# Task
+Strictly verify whether this is indeed the first order of the Magnus expansion.

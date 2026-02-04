@@ -1,5 +1,5 @@
 # Overview
-Derivation of **Prediction Scheme** via **Structure Factor** from **Coupled-Wave Equations**.
+Derivation of **Prediction Scheme** via **Local Fourier Coupling Coefficient** from **Coupled-Wave Equations**.
 
 # Coupled-Wave Equations
 $$
@@ -9,7 +9,7 @@ $$
 $$
 
 # Prediction Scheme
-Structure Factor.
+Fourier Coefficient.
 $$\mathcal{F}[\kappa](\omega) = \int_{z_n}^{z_n+h} \kappa(z) e^{i\omega z} dz$$
 
 Fixed amplitude within integral $z \in [z_n, z_{n+1}]$.

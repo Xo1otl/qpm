@@ -164,3 +164,114 @@ def test_method_comparison() -> None:
     print(f"Speedup (Pert/Super): {t_pert / t_super:.2f}x")
 
     assert jnp.allclose(b_super, b_pert, rtol=5e-2, atol=1e-3), "Super-Step should match Perturbation"
+
+
+def test_magnus_conservation() -> None:
+    """
+    Verifies that the Magnus scheme conserves energy (norm).
+    """
+    config = SimulationConfig()
+    struct = setup_structure(config)
+
+    print(f"\nStructure: {len(struct.domain_widths)} domains.")
+
+    # Run Magnus simulation
+    # Use a large block size to test stability/speed
+    block_size = 50
+
+    # Trim to multiple of block size
+    num_domains = struct.domain_widths.shape[0]
+    remainder = num_domains % block_size
+    if remainder != 0:
+        trim = num_domains - remainder
+        struct.domain_widths = struct.domain_widths[:trim]
+        struct.kappa_shg_vals = struct.kappa_shg_vals[:trim]
+        struct.kappa_sfg_vals = struct.kappa_sfg_vals[:trim]
+
+    t0 = time.perf_counter()
+    a_final = cwes2.simulate_magnus(
+        struct.domain_widths,
+        struct.kappa_shg_vals,
+        struct.kappa_sfg_vals,
+        struct.dk_shg,
+        struct.dk_sfg,
+        struct.p_in,
+        block_size,
+    )
+    a_final.block_until_ready()
+    t_magnus = time.perf_counter() - t0
+
+    # Check conservation: |A1|^2 + |A2|^2 + |A3|^2 = const
+    initial_energy = jnp.sum(jnp.abs(struct.p_in) ** 2)
+    final_energy = jnp.sum(jnp.abs(a_final) ** 2)
+
+    print(f"Magnus (Block {block_size}):")
+    print(f"  Time: {t_magnus * 1e3:.2f} ms")
+    print(f"  Initial Energy: {initial_energy:.6f}")
+    print(f"  Final Energy:   {final_energy:.6f}")
+    print(f"  Diff:           {jnp.abs(final_energy - initial_energy):.6e}")
+
+    assert jnp.isclose(final_energy, initial_energy, atol=1e-5), "Magnus scheme must conserve energy"
+
+    # Compare with LFAGA (Non-conservative baseline)
+    a_lfaga = cwes2.simulate_lfaga(
+        struct.domain_widths,
+        struct.kappa_shg_vals,
+        struct.kappa_sfg_vals,
+        struct.dk_shg,
+        struct.dk_sfg,
+        struct.p_in,
+        block_size,
+    )
+    lfaga_energy = jnp.sum(jnp.abs(a_lfaga) ** 2)
+    print(f"LFAGA Energy Diff: {jnp.abs(lfaga_energy - initial_energy):.6e}")
+
+
+def test_magnus_trace() -> None:
+    """
+    Verifies that the traced Magnus simulation returns the correct shape and matches the final state.
+    """
+    config = SimulationConfig(shg_len=2000.0, sfg_len=2000.0)  # Short run for speed
+    struct = setup_structure(config)
+
+    block_size = 50
+    # Trim to multiple of block size
+    num_domains = struct.domain_widths.shape[0]
+    remainder = num_domains % block_size
+    if remainder != 0:
+        trim = num_domains - remainder
+        struct.domain_widths = struct.domain_widths[:trim]
+        struct.kappa_shg_vals = struct.kappa_shg_vals[:trim]
+        struct.kappa_sfg_vals = struct.kappa_sfg_vals[:trim]
+
+    # Run traced simulation
+    a_final, trace = cwes2.simulate_magnus_with_trace(
+        struct.domain_widths,
+        struct.kappa_shg_vals,
+        struct.kappa_sfg_vals,
+        struct.dk_shg,
+        struct.dk_sfg,
+        struct.p_in,
+        block_size,
+    )
+
+    # 1. Check shape
+    # Trace should have (N_blocks + 1) points (including initial)
+    expected_steps = len(struct.domain_widths) // block_size
+    assert trace.shape == (expected_steps + 1, 3), f"Expected trace shape {(expected_steps + 1, 3)}, got {trace.shape}"
+
+    # 2. Check consistency
+    # Last point in trace should equal a_final
+    assert jnp.allclose(trace[-1], a_final, atol=1e-5), "Last point of trace must match final state."
+
+    # 3. Check against non-traced
+    a_final_ref = cwes2.simulate_magnus(
+        struct.domain_widths,
+        struct.kappa_shg_vals,
+        struct.kappa_sfg_vals,
+        struct.dk_shg,
+        struct.dk_sfg,
+        struct.p_in,
+        block_size,
+    )
+    assert jnp.allclose(a_final, a_final_ref, atol=1e-6), "Traced and non-traced versions must match."

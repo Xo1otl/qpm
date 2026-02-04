@@ -18,7 +18,7 @@ class SimulationConfig:
     temperature: float = 70.0
     wavelength: float = 1.064
     input_power: float = 10.0
-    block_size: int = 100
+    block_size: int = 3100
 
 
 @dataclass
@@ -72,7 +72,7 @@ def setup_structure(config: SimulationConfig) -> SimulationStructure:
 
 def run_lfaga(struct: SimulationStructure) -> tuple[jax.Array, float]:
     print("Warming up JIT...")
-    cwes2.simulate_lfaga(
+    cwes2.simulate_magnus(
         struct.domain_widths,
         struct.kappa_shg_vals,
         struct.kappa_sfg_vals,
@@ -83,7 +83,7 @@ def run_lfaga(struct: SimulationStructure) -> tuple[jax.Array, float]:
     ).block_until_ready()
     print("Warmup complete.")
     start_time = time.time()
-    b_final = cwes2.simulate_lfaga(
+    b_final = cwes2.simulate_magnus(
         struct.domain_widths,
         struct.kappa_shg_vals,
         struct.kappa_sfg_vals,
