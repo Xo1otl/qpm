@@ -234,6 +234,32 @@ def main():
     ax2.set_yscale("log")
     ax2.grid(visible=True, alpha=0.3, which="both")
 
+    # --- Check Linearity and Plot Phase if Linear ---
+    phase_sim = np.unwrap(np.angle(amps))
+    # Fit linear phase (Group Delay)
+    p_coeff = np.polyfit(wls, phase_sim, 1)
+    phase_fit = np.polyval(p_coeff, wls)
+    phase_residual = phase_sim - phase_fit
+    rmse_phase = np.sqrt(np.mean(phase_residual**2))
+
+    print(f"Phase Linearity RMSE: {rmse_phase:.4f} rad")
+
+    if rmse_phase < 0.5:  # Threshold for "linear" (approx lambda/12)
+        print("Phase is linear. Adding phase plot.")
+        _, ax3 = plt.subplots(figsize=(10, 5))
+        ax3.plot(wls, phase_sim, label="Simulated Phase")
+        ax3.plot(wls, phase_fit, "r--", label=f"Linear Fit (RMSE={rmse_phase:.2e})")
+        ax3.set_title("Spectral Phase (Linear)")
+        ax3.set_xlabel("Wavelength (µm)")
+        ax3.set_ylabel("Phase (rad)")
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig("dithered_Lc_phase.png", dpi=150)
+        print("Saved dithered_Lc_phase.png")
+    else:
+        print(f"Phase is NOT linear (RMSE={rmse_phase:.4f}). Skipping phase plot.")
+
     plt.tight_layout()
     plt.savefig("dithered_Lc_demo.png", dpi=150)
     print("Saved dithered_Lc_demo.png")
