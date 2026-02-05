@@ -161,7 +161,20 @@ def run_magnus(struct: SimulationStructure) -> tuple[SimulationResult, float]:
     a2 = interpolate_polar(z_full, z_sparse, a2_sparse)
     a3 = interpolate_polar(z_full, z_sparse, a3_sparse)
 
-    total_power = np.abs(a1) ** 2 + np.abs(a2) ** 2 + np.abs(a3) ** 2
+    # Enforce power conservation on the interpolated results
+    # 1. Calculate exact power at trace points
+    power_sparse = np.abs(a1_sparse) ** 2 + np.abs(a2_sparse) ** 2 + np.abs(a3_sparse) ** 2
+    # 2. Interpolate the total power (which should be constant or smooth)
+    target_power = np.interp(z_full, z_sparse, power_sparse)
+    # 3. Calculate current power of interpolated fields
+    current_power = np.abs(a1) ** 2 + np.abs(a2) ** 2 + np.abs(a3) ** 2
+    # 4. Apply correction factor Avoid division by zero
+    correction = np.sqrt(target_power / (current_power + 1e-20))
+    a1 *= correction
+    a2 *= correction
+    a3 *= correction
+
+    total_power = target_power
 
     return SimulationResult(z=z_full, a1=a1, a2=a2, a3=a3, total_power=total_power), elapsed_time
 

@@ -182,6 +182,7 @@ def main():
     print(f"Original segments: {len(widths)}, Final domains: {len(final_widths)}")
     if len(final_widths) > 0:
         print(f"Min width after filtering: {np.min(final_widths):.4e} um")
+        print(f"Total length: {np.sum(final_widths):.4f} um")
 
     # --- 3. Simulation ---
     wl_start, wl_end, wl_points = 1.0638, 1.0642, 1000

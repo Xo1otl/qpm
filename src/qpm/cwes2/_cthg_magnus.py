@@ -61,45 +61,26 @@ def _precompute_structure_factors_all(
     # 4. Sum into blocks
     # Reshape to (C, n_blocks, block_size) and sum over last axis
     n_blocks = widths.shape[0] // block_size
-    # C is likely 4 or 2 depending on usage
-    C = kappas.shape[0]
-    factors_reshaped = factors_domains.reshape(C, n_blocks, block_size)
-    factors_blocks = jnp.sum(factors_reshaped, axis=2)
-
-    return factors_blocks
+    # c_dim is likely 4 or 2 depending on usage
+    c_dim = kappas.shape[0]
+    factors_reshaped = factors_domains.reshape(c_dim, n_blocks, block_size)
+    return jnp.sum(factors_reshaped, axis=2)
 
 
-def _magnus_step_update(
-    u_curr: jax.Array,
-    f_factors: tuple[jax.Array, jax.Array],
-) -> jax.Array:
-    # Updates normalized envelopes u using the Magnus-Cayley scheme.
-    # Note: Using u = A (no normalization) based on 1:1 ODE structure.
-    u1, u2, _ = u_curr
-    f_shg, f_sfg = f_factors
+def _compute_omega(u: jax.Array, f_shg: jax.Array, f_sfg: jax.Array) -> jax.Array:
+    """Computes the skew-Hermitian interaction matrix Omega."""
+    u1, u2, _ = u
 
-    # A_n is same as u_n (normalized u = A)
-    a1 = u1
-    a2 = u2
-    # a3 = u3 # Not needed for mu calculation
-
-    # Compute mu elements (frozen at step n)
+    # Compute mu elements
     # SHG: A1' ~ A2 A1*, A2' ~ A1^2
-    # mu_12 = beta_shg * A1*
-    mu_12 = f_shg * jnp.conj(a1)
+    mu_12 = f_shg * jnp.conj(u1)
 
     # SFG: A1' ~ A3 A2*, A2' ~ 2 A3 A1*, A3' ~ 3 A1 A2
-    # mu_13 corresponding to A1-A3 link (via A2)
-    # mu_13 = beta_sfg * A2*
-    mu_13 = f_sfg * jnp.conj(a2)
-
-    # mu_23 corresponding to A2-A3 link (via A1) with coeff 2
-    # mu_23 = 2 * beta_sfg * A1*
-    mu_23 = 2.0 * f_sfg * jnp.conj(a1)
+    mu_13 = f_sfg * jnp.conj(u2)
+    mu_23 = 2.0 * f_sfg * jnp.conj(u1)
 
     # Construct Omega matrix (Skew-Hermitian)
     # Omega = i * [[0, mu12, mu13], [mu12*, 0, mu23], [mu13*, mu23*, 0]]
-
     zero = jnp.complex64(0.0)
 
     # Row 0
@@ -117,13 +98,33 @@ def _magnus_step_update(
     o_21 = 1j * jnp.conj(mu_23)
     o_22 = zero
 
-    omega = jnp.array([[o_00, o_01, o_02], [o_10, o_11, o_12], [o_20, o_21, o_22]])
+    return jnp.array([[o_00, o_01, o_02], [o_10, o_11, o_12], [o_20, o_21, o_22]])
 
-    # Cayley Transform Update
-    # u_next = (I - 0.5*Omega)^(-1) (I + 0.5*Omega) u_curr
+
+def _magnus_step_update(
+    u_curr: jax.Array,
+    f_factors: tuple[jax.Array, jax.Array],
+) -> jax.Array:
+    # Updates normalized envelopes u using the Magnus-Cayley scheme.
+    # Note: Using u = A (no normalization) based on 1:1 ODE structure.
+    f_shg, f_sfg = f_factors
+
+    # 1. Predictor Step: Estimate u at midpoint
+    # Calculate Omega(u_n)
+    omega_n = _compute_omega(u_curr, f_shg, f_sfg)
+
+    # u_{n+1/2} = u_n + 0.5 * Omega_n @ u_n
+    u_mid = u_curr + 0.5 * (omega_n @ u_curr)
+
+    # 2. Corrector Step: Construct Generator at midpoint
+    # Calculate Omega(u_{n+1/2})
+    omega_mid = _compute_omega(u_mid, f_shg, f_sfg)
+
+    # 3. Cayley Transform Update using Omega_mid
+    # u_next = (I - 0.5*Omega_mid)^(-1) (I + 0.5*Omega_mid) u_curr
 
     eye = jnp.eye(3, dtype=jnp.complex64)
-    half_omega = 0.5 * omega
+    half_omega = 0.5 * omega_mid
 
     mat_plus = eye + half_omega
     mat_minus = eye - half_omega
@@ -131,9 +132,56 @@ def _magnus_step_update(
     rhs = mat_plus @ u_curr
 
     # Solve (I - 0.5*Omega) u_next = rhs
-    u_next = jnp.linalg.solve(mat_minus, rhs)
+    return _solve_3x3_explicit(mat_minus, rhs)
 
-    return u_next
+
+def _solve_3x3_explicit(mat: jax.Array, rhs: jax.Array) -> jax.Array:
+    """
+    Explicitly solves a 3x3 linear system mat @ x = rhs using Cramer's rule / analytic inverse.
+    This is faster than jnp.linalg.solve for small fixed-size matrices on GPU/TPU
+    as it avoids pivoting and general decomposition overhead.
+    """
+    # Unpack rows for clarity
+    row0 = mat[0]
+    row1 = mat[1]
+    row2 = mat[2]
+
+    a, b, c = row0[0], row0[1], row0[2]
+    d, e, f = row1[0], row1[1], row1[2]
+    g, h, i = row2[0], row2[1], row2[2]
+
+    # Compute determinant
+    # det = a(ei - fh) - b(di - fg) + c(dh - eg)
+    det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+    inv_det = 1.0 / det
+
+    # Compute elements of the adjugate matrix (transpose of cofactor matrix)
+    # Row 0
+    a00 = (e * i - f * h) * inv_det
+    a01 = (c * h - b * i) * inv_det
+    a02 = (b * f - c * e) * inv_det
+
+    # Row 1
+    a10 = (f * g - d * i) * inv_det
+    a11 = (a * i - c * g) * inv_det
+    a12 = (c * d - a * f) * inv_det
+
+    # Row 2
+    a20 = (d * h - e * g) * inv_det
+    a21 = (g * b - a * h) * inv_det
+    a22 = (a * e - b * d) * inv_det
+
+    # Compute result vector: x = A_adj @ rhs
+    # matrix-vector multiplication
+    x = rhs[0]
+    y = rhs[1]
+    z = rhs[2]
+
+    res0 = a00 * x + a01 * y + a02 * z
+    res1 = a10 * x + a11 * y + a12 * z
+    res2 = a20 * x + a21 * y + a22 * z
+
+    return jnp.array([res0, res1, res2])
 
 
 @functools.partial(jax.jit, static_argnames=["return_trace"])
@@ -236,9 +284,7 @@ def simulate_magnus(  # noqa: PLR0913
 
     # Convert u_final back to A_final
     # u = A
-    a_final = u_final
-
-    return a_final
+    return u_final
 
 
 def simulate_magnus_with_trace(  # noqa: PLR0913
@@ -287,6 +333,4 @@ def simulate_magnus_with_trace(  # noqa: PLR0913
 
     # Convert u_final back to A_final
     # u = A
-    a_final = u_final
-
-    return a_final, trace
+    return u_final, trace
