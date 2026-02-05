@@ -45,8 +45,8 @@ def compute_precise_amplitude(widths: np.ndarray) -> tuple[float, np.ndarray]:
     n = len(widths)
     signs = jnp.tile(jnp.array([1.0, -1.0]), (n // 2 + 1))[:n]
 
-    b_final, trace = cwes2.simulate_twm_with_trace(
-        jnp.array(widths), signs * k0, signs * k0 * 2, dk1, dk2, b_init
+    b_final, trace = cwes2.simulate_magnus_with_trace(
+        jnp.array(widths), signs * k0, signs * k0 * 2, dk1, dk2, b_init, 300
     )
     return float(jnp.abs(b_final[2])), np.array(trace)
 

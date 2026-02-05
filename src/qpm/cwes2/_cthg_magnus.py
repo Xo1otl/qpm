@@ -15,7 +15,6 @@ def _precompute_structure_factors_all(
 ) -> jax.Array:
     """
     Computes structure factors for all channels simultaneously.
-    (Duplicated from _cthg_lfaga_binary.py to keep module self-contained)
 
     Args:
         widths: (N,) array of domain widths.
@@ -205,7 +204,7 @@ def _magnus_scan_loop(
     # Zip the factors for scanning
     xs = (f_shg_series, f_sfg_series)
 
-    u_final, u_stacked = lax.scan(scan_body, u_initial, xs, unroll=20)
+    u_final, u_stacked = lax.scan(scan_body, u_initial, xs)
 
     if return_trace and u_stacked is not None:
         full_trace = jnp.vstack([u_initial[None, :], u_stacked])
