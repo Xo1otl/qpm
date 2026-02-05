@@ -26,4 +26,6 @@
 
 
 - [DCM](https://doi.org/10.1364/JOSAB.17.000304): Fejerが解析的に逆設計できるとか言い切ったけど、設計変数がパルス位置固定の周期とDuty比であり、私の周期固定のDuty比とパルス位置変調と探索空間が明らかに違うので、できるはずない構造があるって感じの論文。
-- [DCM](https://doi.org/10.1364/ol.23.001880): Fejerが引用していたLocal Shift(今回解決したやつ)の問題が書かれてるらしい、3セグ広帯域化の人。
+- [DCM](https://doi.org/10.1364/ol.23.001880): 3セグ広帯域化
+- [MgO:SLTの355nm](J. Hirohashi, T. Fukui, and Y. Furukawa, "Stable half-watt 355 nm generation with PPMgSLT," in Lasers, Sources and Related Photonic Devices, paper AMB30 (2010).)
+- [cTHGの最適化アルゴリズムらしい](C.-W. Hsu, J.-Y. Lai, and S.-D. Yang, "Engineered quasi-phase matching for conversion efficiency optimization of coupled $\chi^{(2)}$ processes," in Proc. SPIE (or Optica Technical Digest), paper AMB30.)
