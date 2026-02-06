@@ -1,5 +1,5 @@
 # Overview
-Derivation of **Magnus-Cayley Scheme** from **Coupled-Wave Equations** via **Local Fourier Coefficients** and **Prediction Scheme**.
+**Magnus-Cayley Scheme** for **Coupled-Wave Equations** via **Local Fourier Coefficients** and **Prediction Scheme** and **Magnus Cayley Update**.
 
 # Coupled-Wave Equations
 $$
@@ -25,7 +25,7 @@ $$
 \end{aligned}
 $$
 
-# Magnus-Cayley Scheme
+# Magnus-Cayley Update
 ## Magnus Generator
 First-order expansion $\mathbf{\Omega}_1$ via Midpoint Rule:
 $$\mathbf{\Omega}_1 = \int_{z_n}^{z_{n+1}} \mathbf{M}(\tau, \mathbf{A}_{n+1/2}) d\tau$$
