@@ -230,8 +230,8 @@ def run_scipy_ode(struct: SimulationStructure, *, verification: bool = True) -> 
     y0 = np.array(struct.p_in, dtype=np.complex128)
 
     method = "DOP853" if verification else "RK45"
-    rtol = 1e-8 if verification else None
-    atol = 1e-8 if verification else None
+    rtol = 1e-10 if verification else None
+    atol = 1e-10 if verification else None
 
     start_time = time.perf_counter()
     t, y, nfev = _solve_ode_core(z_coords, kappa_shg_vals, kappa_sfg_vals, dk_shg, dk_sfg, y0, method, rtol, atol)

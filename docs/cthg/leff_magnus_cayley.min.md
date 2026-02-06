@@ -1,5 +1,5 @@
 # Overview
-Derivation of **Coupled-Wave Equations**, **Local Fourier Coefficients**, **Prediction Scheme**, and **Magnus-Cayley Scheme**.
+Derivation of **Magnus-Cayley Scheme** from **Coupled-Wave Equations** via **Local Fourier Coefficients** and **Prediction Scheme**.
 
 # Coupled-Wave Equations
 $$
@@ -13,15 +13,15 @@ Integral of oscillating terms over step $h$:
 $$\mathcal{F}[\kappa](\omega, h) = \int_{z_n}^{z_n+h} \kappa(z) e^{i\omega z} dz$$
 
 # Prediction Scheme
-Estimate $\mathbf{A}_{n+1/2}$ via Explicit Local Fourier (step $h/2$).
+Estimate $\mathbf{A}_{n+1/2}$ via Euler step with scaled full-step coefficients.
 $$\mathbf{A}_{n+1/2} = \mathbf{A}_n + i \mathbf{\Delta}_n$$
 
-Update components using half-step coefficients $\mathcal{F}(h/2)$:
+Update components using coefficients $\mathcal{F}(h)$:
 $$
 \begin{aligned}
-\Delta_{n,1} &= A_2 A_1^* \mathcal{F}[\kappa_{SHG}](\Delta k_{SHG}, h/2) + A_3 A_2^* \mathcal{F}[\kappa_{SFG}](\Delta k_{SFG}, h/2) \\
-\Delta_{n,2} &= A_1^2 \mathcal{F}[\kappa_{SHG}](-\Delta k_{SHG}, h/2) + 2 A_3 A_1^* \mathcal{F}[\kappa_{SFG}](\Delta k_{SFG}, h/2) \\
-\Delta_{n,3} &= 3 A_1 A_2 \mathcal{F}[\kappa_{SFG}](-\Delta k_{SFG}, h/2)
+\Delta_{n,1} &= \frac{1}{2} \left[ A_2 A_1^* \mathcal{F}[\kappa_{SHG}](\Delta k_{SHG}, h) + A_3 A_2^* \mathcal{F}[\kappa_{SFG}](\Delta k_{SFG}, h) \right] \\
+\Delta_{n,2} &= \frac{1}{2} \left[ A_1^2 \mathcal{F}[\kappa_{SHG}](-\Delta k_{SHG}, h) + 2 A_3 A_1^* \mathcal{F}[\kappa_{SFG}](\Delta k_{SFG}, h) \right] \\
+\Delta_{n,3} &= \frac{1}{2} \left[ 3 A_1 A_2 \mathcal{F}[\kappa_{SFG}](-\Delta k_{SFG}, h) \right]
 \end{aligned}
 $$
 
