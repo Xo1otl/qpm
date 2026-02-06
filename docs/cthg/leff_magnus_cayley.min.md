@@ -1,5 +1,5 @@
 # Overview
-**Magnus-Cayley Scheme** for **Coupled-Wave Equations** via **Local Fourier Coefficients** and **Prediction Scheme** and **Magnus Cayley Update**.
+**Magnus-Cayley Scheme** for **Coupled-Wave Equations** via **Local Fourier Coefficients** and **Midpoint Predictor** and **Magnus Cayley Update**.
 
 # Coupled-Wave Equations
 $$
@@ -12,7 +12,7 @@ $$
 Integral of oscillating terms over step $h$:
 $$\mathcal{F}[\kappa](\omega, h) = \int_{z_n}^{z_n+h} \kappa(z) e^{i\omega z} dz$$
 
-# Prediction Scheme
+# Midpoint Predictor
 Estimate $\mathbf{A}_{n+1/2}$ via Euler step with scaled full-step coefficients.
 $$\mathbf{A}_{n+1/2} = \mathbf{A}_n + i \mathbf{\Delta}_n$$
 

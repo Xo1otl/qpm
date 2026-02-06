@@ -20,12 +20,12 @@ memory = Memory(location=".cache", verbose=0)
 @dataclass
 class SimulationConfig:
     shg_len: float = 15000.0
-    sfg_len: float = 15000.0
+    sfg_len: float = 30000.0
     kappa_shg_base: float = 1.5e-5 / (2 / jnp.pi)
     temperature: float = 70.0
     wavelength: float = 1.064
     input_power: float = 10.0
-    block_size: int = round(1445)
+    block_size: int = 1445
 
 
 @dataclass
@@ -267,8 +267,8 @@ def plot_results_notext(
     plt.plot(pert_res.z, np.abs(pert_res.a1), label="Super Step", linewidth=3)
     plt.plot(scipy_res.z, np.abs(scipy_res.a1), label="RK45", linewidth=3)
     plt.plot(scipy_res_ver.z, np.abs(scipy_res_ver.a1), label="DOP853", linestyle="--", linewidth=3)
-    ax1.set_xticklabels([])
-    ax1.set_yticklabels([])
+    # ax1.set_xticklabels([])
+    # ax1.set_yticklabels([])
     plt.ylabel("|A1|", fontsize=24)
     plt.legend(loc="upper right")
     plt.grid(visible=True, linestyle=":")
@@ -278,8 +278,8 @@ def plot_results_notext(
     plt.plot(pert_res.z, np.abs(pert_res.a2), label="Super Step", linewidth=3)
     plt.plot(scipy_res.z, np.abs(scipy_res.a2), label="RK45", linewidth=3)
     plt.plot(scipy_res_ver.z, np.abs(scipy_res_ver.a2), label="DOP853", linestyle="--", linewidth=3)
-    ax2.set_xticklabels([])
-    ax2.set_yticklabels([])
+    # ax2.set_xticklabels([])
+    # ax2.set_yticklabels([])
     plt.ylabel("|A2|", fontsize=24)
     plt.legend(loc="upper right")
     plt.grid(visible=True, linestyle=":")
@@ -289,8 +289,8 @@ def plot_results_notext(
     plt.plot(pert_res.z, np.abs(pert_res.a3), label="Super Step", linewidth=3)
     plt.plot(scipy_res.z, np.abs(scipy_res.a3), label="RK45", linewidth=3)
     plt.plot(scipy_res_ver.z, np.abs(scipy_res_ver.a3), label="DOP853", linestyle="--", linewidth=3)
-    ax3.set_xticklabels([])
-    ax3.set_yticklabels([])
+    # ax3.set_xticklabels([])
+    # ax3.set_yticklabels([])
     plt.ylabel("|A3|", fontsize=24)
     plt.legend(loc="upper right")
     plt.grid(visible=True, linestyle=":")
@@ -300,7 +300,7 @@ def plot_results_notext(
     plt.plot(pert_res.z, pert_res.total_power, label="Super Step", linewidth=3)
     plt.plot(scipy_res.z, scipy_res.total_power, label="RK45", linewidth=3)
     plt.plot(scipy_res_ver.z, scipy_res_ver.total_power, label="DOP853", linestyle="--", linewidth=3)
-    ax4.set_yticklabels([])
+    # ax4.set_yticklabels([])
     plt.ylabel("Total Power", fontsize=24)
     plt.xlabel("Position", fontsize=24)
     plt.legend(loc="upper right")
