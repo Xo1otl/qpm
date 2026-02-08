@@ -20,12 +20,12 @@ memory = Memory(location=".cache", verbose=0)
 @dataclass
 class SimulationConfig:
     shg_len: float = 15000.0
-    sfg_len: float = 30000.0
-    kappa_shg_base: float = 1.5e-5 / (2 / jnp.pi)
+    sfg_len: float = 15000.0
+    kappa_shg_base: float = 1.5e-4 / (2 / jnp.pi)
     temperature: float = 70.0
     wavelength: float = 1.064
     input_power: float = 10.0
-    block_size: int = 1445
+    block_size: int = round(1445 / 100)
 
 
 @dataclass

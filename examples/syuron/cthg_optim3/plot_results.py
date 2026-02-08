@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import ticker
 
 from qpm import cwes2, mgoslt
 
@@ -72,15 +73,40 @@ def run_trace_simulation(w_clean, block_size=10):
     return z_trace, amps_full
 
 
+def construct_noro_structure():
+    """Constructs the Noro structure (2.5mm SHG, 7.5mm SFG)."""
+    wl = 1.064
+    T = 70.0
+    dk1 = mgoslt.calc_twm_delta_k(wl, wl, T)
+    dk2 = mgoslt.calc_twm_delta_k(wl, wl / 2, T)
+
+    w_shg = float(jnp.pi / dk1)
+    w_sfg = float(jnp.pi / dk2)
+
+    sfg_len_um = 7500.0
+    shg_len_um = 10000.0
+
+    n_shg = round(shg_len_um / w_shg)
+    n_sfg = round(sfg_len_um / w_sfg)
+
+    w_list = [w_shg] * n_shg + [w_sfg] * n_sfg
+    return np.array(w_list)
+
+
+
 def plot_structure(ax, w, title):
-    """Plots domain width vs index using POINTS."""
-    indices = np.arange(len(w))
+    """Plots domain width vs z-coordinate (um) using POINTS."""
+    # Compute cumulative sum of widths to get z positions in microns
+    z_um = np.cumsum(w)
+
     # Using scatter/plot with 'o' marker
-    ax.plot(indices, w, "o", markersize=0.5, linestyle="None")
-    ax.set_xlabel("ドメイン番号")
-    ax.set_ylabel("ドメイン幅 (µm)")
-    ax.set_title(title)
+    ax.plot(z_um, w, "o", markersize=0.5, linestyle="None")
     ax.grid(True, alpha=0.3)
+    ax.set_ylim(0, 6)
+    ax.set_title(title)
+    ax.set_ylabel(r"ドメイン幅 ($\mu$m)")
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
 
 
 def plot_amplitudes(ax, z, amps, title):
@@ -89,7 +115,7 @@ def plot_amplitudes(ax, z, amps, title):
     ax.plot(z, amps[:, 1], color="green", label="SH波")
     ax.plot(z, amps[:, 2], color="purple", label="TH波")
 
-    ax.set_xlabel("z軸 (µm)")
+    ax.set_xlabel(r"z軸 ($\mu$m)")
     ax.set_ylabel("振幅発展")
     ax.set_title(title)
     ax.legend()
@@ -120,7 +146,7 @@ def main():
     # --- Plotting - Separate Sets ---
 
     # Set 1: Initial
-    fig_init, axs_init = plt.subplots(2, 1, figsize=(10, 10), constrained_layout=True)
+    fig_init, axs_init = plt.subplots(2, 1, figsize=(10, 10), constrained_layout=True, sharex=True)
     plot_structure(axs_init[0], w_init, "最適化前の構造")
     plot_amplitudes(axs_init[1], z_init, amps_init, "振幅発展")
 
@@ -129,7 +155,7 @@ def main():
     print(f"Saved {fig_init_name}")
 
     # Set 2: Final
-    fig_final, axs_final = plt.subplots(2, 1, figsize=(10, 10), constrained_layout=True)
+    fig_final, axs_final = plt.subplots(2, 1, figsize=(10, 10), constrained_layout=True, sharex=True)
     plot_structure(axs_final[0], w_final, "最適化された構造")
     plot_amplitudes(axs_final[1], z_final, amps_final, "振幅発展")
 
@@ -137,8 +163,19 @@ def main():
     fig_final.savefig(fig_final_name, dpi=300)
     print(f"Saved {fig_final_name}")
 
+    # Set 3: Noro (2.5mm SHG + 7.5mm SFG)
+    w_noro = construct_noro_structure()
+    print("Simulating Noro Structure...")
+    z_noro, amps_noro = run_trace_simulation(w_noro, block_size=1)
+
+    fig_noro, axs_noro = plt.subplots(2, 1, figsize=(10, 10), constrained_layout=True, sharex=True)
+    plot_structure(axs_noro[0], w_noro, "先行研究のタンデム構造")
+    plot_amplitudes(axs_noro[1], z_noro, amps_noro, "振幅発展")
+    fig_noro.savefig("fig_noro.png", dpi=300)
+
     print(f"Initial Max THG: {np.max(amps_init[:, 2]):.4f}")
     print(f"Final Max THG:   {np.max(amps_final[:, 2]):.4f}")
+    print("Noro THG = 1.704!")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import japanize_matplotlib
 import numpy as np
 from matplotlib.ticker import FormatStrFormatter, MaxNLocator
 
@@ -121,8 +122,8 @@ def merge_and_filter_domains(widths, kappas, threshold=1.0e-6):
 
 def main():
     # --- Configuration ---
-    num_periods_periodic = 1000
-    num_periods_holographic = num_periods_periodic * 3
+    num_periods_periodic = 2000
+    num_periods_holographic = num_periods_periodic
     design_wl = 1.064
     design_temp = 70.0
     kappa_mag = 1.31e-5 / (2 / np.pi)
@@ -223,7 +224,7 @@ def main():
 
     # --- 4. Plotting ---
     plot_config = {
-        "font_size": 32,
+        "font_size": 16,
         "x_prec": 3,
         "y_prec": 3,
         "idx_prec": 0,
@@ -234,9 +235,13 @@ def main():
     _, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 15))
 
     # Plot 1: Spectra
-    ax1.plot(wls, spectrum_ideal, "k--", label="Target (Ideal)", linewidth=1.5)
-    ax1.plot(wls, spectrum, "g-", label="Dithered & Filtered (Lc)", linewidth=1.0)
-    ax1.plot(wls, spectrum_periodic, "r-", label="Periodic (Lc)", linewidth=1.0, alpha=0.7)
+    ax1.set_title("SHG Spectrum")
+    ax1.set_xlabel("Wavelength [$\\mu$m]")
+    ax1.set_ylabel("SHG Amplitude $W^{-1/2}$")
+    ax1.plot(wls, spectrum_ideal, "k--", label="ターゲットガウス形状", linewidth=1.5)
+    ax1.plot(wls, spectrum, "g-", label="誤差拡散後", linewidth=1.0)
+    ax1.plot(wls, spectrum_periodic, "r-", label="全長が同じ一定周期構造", linewidth=1.0, alpha=0.7)
+    ax1.legend()
 
     ax1.xaxis.set_major_locator(MaxNLocator(nbins=4))
     ax1.yaxis.set_major_locator(MaxNLocator(nbins=4))
@@ -246,10 +251,14 @@ def main():
     ax1.grid(visible=True, alpha=0.3)
 
     # Plot 2: Domain Width Distribution (Merged)
+    ax2.set_title("Domain Width Distribution")
+    ax2.set_xlabel("Domain Index")
+    ax2.set_ylabel("Width [$\\mu$m]")
     domain_indices = np.arange(len(final_widths))
 
     # Plot ALL domains
     ax2.scatter(domain_indices, final_widths, s=1, c="b", alpha=0.5, label="Domain Widths")
+    ax2.legend()
     ax2.xaxis.set_major_locator(MaxNLocator(nbins=4))
     ax2.yaxis.set_major_locator(MaxNLocator(nbins=4))
     ax2.xaxis.set_major_formatter(FormatStrFormatter(f"%.{plot_config['idx_prec']}f"))
@@ -273,8 +282,12 @@ def main():
     if rmse_phase < 0.5:  # Threshold for "linear" (approx lambda/12)
         print("Phase is linear. Adding phase plot.")
         _, ax3 = plt.subplots(figsize=(10, 5))
+        ax3.set_title("Phase Linearity")
+        ax3.set_xlabel("Wavelength [$\\mu$m]")
+        ax3.set_ylabel("Phase [rad]")
         ax3.plot(wls, phase_sim, label="Simulated Phase")
         ax3.plot(wls, phase_fit, "r--", label=f"Linear Fit (RMSE={rmse_phase:.2e})")
+        ax3.legend()
         ax3.xaxis.set_major_locator(MaxNLocator(nbins=4))
         ax3.yaxis.set_major_locator(MaxNLocator(nbins=4))
         ax3.xaxis.set_major_formatter(FormatStrFormatter(f"%.{plot_config['x_prec']}f"))

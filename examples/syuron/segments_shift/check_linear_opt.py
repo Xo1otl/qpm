@@ -5,6 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import japanize_matplotlib
 import jax
 
 # Force CPU
@@ -107,15 +108,15 @@ def plot_verification_results(data: dict[str, Any], output_filename: str = "veri
     plt.figure(figsize=(12, 7))
 
     # Trace 1: Uniform
-    label_ref = f"Uniform (W={m_ref['fw95']:.5f}, A={m_ref['peak']:.2f})"
+    label_ref = f"一定周期 (W={m_ref['fw95']:.5f}, A={m_ref['peak']:.2f})"
     plt.plot(grid, ref_norm, ":", color="gray", alpha=0.5, label=label_ref)
 
     # Trace 2: Initial 3-Seg
-    label_init = f"Initial 3-Seg (L={m_init['length']:.1f}, W={m_init['fw95']:.5f}, A={m_init['peak']:.2f})"
+    label_init = f"3セクション構造 (L={m_init['length']:.1f}, W={m_init['fw95']:.5f}, A={m_init['peak']:.2f})"
     plt.plot(grid, init_norm, "--", color="green", alpha=0.6, label=label_init)
 
     # Trace 3: Optimized
-    label_opt = f"Optimized (L={m_final['length']:.1f}, W={m_final['fw95']:.5f}, A={m_final['peak']:.2f})"
+    label_opt = f"最適化構造 (L={m_final['length']:.1f}, W={m_final['fw95']:.5f}, A={m_final['peak']:.2f})"
     plt.plot(grid, final_norm, "-", color="#2E86AB", linewidth=2 * scale, label=label_opt)
 
     plt.legend(fontsize=fs * 0.9)

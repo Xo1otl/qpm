@@ -24,7 +24,7 @@ def plot_domain_widths(widths: jax.Array) -> None:
 
 
 num_domains = round(10000 / 7.2 * 2)  # 10mm 7.2 \mu m period -> 2W output
-kappa_mag = 1.5e-5 / (2 / jnp.pi)  # 野呂さんの論文に一定周期の実効的な結合係数が 0.15 W^{-1/2} cm^{-1}と書いてある
+kappa_mag = 1.5e-5 / (2 / jnp.pi)
 temperature = 70.0  # Operating temperature (°C)
 wl_center = 1.064
 dk = mgoslt.calc_twm_delta_k(wl_center, wl_center, temperature)
@@ -61,6 +61,19 @@ b_out_chirp = batch_shg_npda(widths_chirp, kappas_chirp, dks_chirp, b_in)
 p_out_chirp = jnp.abs(b_out_chirp) ** 2
 
 # Plot
+# Uniform Stats
+len_uni = float(jnp.sum(widths_uniform))
+min_uni = float(jnp.min(widths_uniform))
+max_uni = float(jnp.max(widths_uniform))
+txt_uni = (
+    f"$\\kappa$: {kappa_mag:.2e}\n"
+    f"L: {len_uni:.1f} $\\mu$m\n"
+    f"$P_{{in}}$: {p_in} W\n"
+    f"T: {temperature}°C\n"
+    f"$\\Lambda$: {float(2 * l_c):.4f} $\\mu$m\n"
+    f"w: {max_uni:.3f} $\\mu$m"
+)
+
 plt.figure(figsize=(10, 6))
 plt.plot(wls_uniform, p_out_uniform_70, label="70°C")
 plt.plot(wls_uniform, p_out_uniform_71, label="75°C")
@@ -68,13 +81,46 @@ plt.xlabel(r"Wavelength ($\mu$m)")
 plt.ylabel("Output Power (W)")
 plt.title("SHG Spectrum")
 plt.legend()
+plt.text(
+    0.95,
+    0.95,
+    txt_uni,
+    transform=plt.gca().transAxes,
+    fontsize=10,
+    verticalalignment="top",
+    horizontalalignment="right",
+    bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.5},
+)
 plt.grid(visible=True)
 plt.savefig("uniform_npda.png")
+
+# Chirp Stats
+len_chirp = float(jnp.sum(widths_chirp))
+min_chirp = float(jnp.min(widths_chirp))
+max_chirp = float(jnp.max(widths_chirp))
+txt_chirp = (
+    f"$\\kappa$: {kappa_mag:.2e}\n"
+    f"L: {len_chirp:.1f} $\\mu$m\n"
+    f"$P_{{in}}$: {p_in} W\n"
+    f"T: {temperature}°C\n"
+    f"Rate: {chirp_rate:.2e}\n"
+    f"w: [{min_chirp:.3f}, {max_chirp:.3f}] $\\mu$m"
+)
 
 plt.figure(figsize=(10, 6))
 plt.plot(wls_chirp, p_out_chirp)
 plt.xlabel(r"Wavelength ($\mu$m)")
 plt.ylabel("Output Power (W)")
 plt.title("SHG Spectrum")
+plt.text(
+    0.95,
+    0.95,
+    txt_chirp,
+    transform=plt.gca().transAxes,
+    fontsize=10,
+    verticalalignment="top",
+    horizontalalignment="right",
+    bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.5},
+)
 plt.grid(visible=True)
 plt.savefig("chirp_npda.png")

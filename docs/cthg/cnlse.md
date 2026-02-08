@@ -30,6 +30,3 @@ $$A_2^{(2)}(z, t) = A_2^{(1)} + i (A_1^{(1)})^2 \mathcal{F}[\kappa](+\Delta k)$$
 # Convergence Criterion
 Step size $h$ constrained by **Walk-off** and **Dispersion**, not Grating Period $\Lambda$.
 $$h \ll \min \left( \frac{\tau_p}{|v_{g1}^{-1} - v_{g2}^{-1}|}, \frac{\tau_p^2}{|\beta_2|} \right)$$
-
-# Task
-Strictly verify whether this is indeed the first order of the Magnus expansion.
