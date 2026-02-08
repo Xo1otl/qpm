@@ -1,0 +1,31 @@
+<!-- TODO: Add a super concise one-line summary with the doi URL-->
+
+- [SPDC](https://doi.org/10.1103/PhysRevA.93.013801): Duty比変調+数理最適化
+- [SFG](https://doi.org/10.1364/OE.18.013331)
+- [cTHG](https://doi.org/10.3389/fphy.2022.1038240)
+- [Broadband SHG](https://doi.org/10.1016/j.mex.2019.04.015)
+- [cTHG](https://doi.org/10.3390/photonics10010076)
+- [DFG](https://doi.org/10.1364/OL.24.001157)
+- [SHG (Broadband, Flat-top, Aperiodic)](https://doi.org/10.1016/S0030-4018(02)02336-2): aperiodic gratingによるSHGスペクトルのフラットトップ・広帯域設計
+- [SHG (Broadband, Chirped)](https://doi.org/10.1364/OL.22.001341): chirped QPMを用いた超広帯域SHG
+- [SHG+DFG (Simultaneous Broadband)](https://doi.org/10.1109/68.766774): PPLNでのカスケードSFG/DFGによる波長変換
+- [SFG (Broadband, Multiple conversion)](https://doi.org/10.1364/OL.35.002672): SFG+SHGによる同時多波長・広帯域波長変換
+- [SFG (PPLT, Single-pass)](https://doi.org/10.1364/OE.18.013331): PPLTでの高効率SFG（589nm黄色光）
+- [DFG (Broadband, Phase-shifted)](https://doi.org/10.1364/AO.50.00E108): phase shifterを導入したQPMによる広帯域・フラットトップDFG
+- [DFG (Ultra-broadband, Chirped)](https://doi.org/10.1364/OE.426575): chirped QPMによる超広帯域パラメトリック増幅・蛍光
+- [cTHG (Efficient, Sampled-grating)](https://doi.org/10.1002/lpor.202300953): 構造設計（sampled-grating）による高効率カスケード第三高調波発生
+- [cTHG (Optimization, Tandem)](https://doi.org/10.3390/photonics10010076): タンデム構造でのcTHG効率最大化（数値最適化）
+- [SPDC (Gaussian JSA, Duty cycle modulation)](https://doi.org/10.1364/OE.21.005879): Duty比変調による位相整合形状のガウシアン化（サイドローブ抑制）
+- [SPDC (Ultra-broadband, Chirped)](https://doi.org/10.1103/PhysRevLett.100.183601): chirped QPMによる超広帯域二光子対発生とスペクトル制御
+- [FHG (SHG+SHG, Tandem)](https://doi.org/10.1364/OE.471450): タンデムQPMによる高次高調波発生（SHG+SHG）
+- [SHG](https://doi.org/10.1364/OL.23.001880): 広帯域化、位相シフトセグメント
+- [OPG](https://doi.org/10.1016/j.ijleo.2020.165466): 広帯域化、位相シフトセグメント
+- [SHG](https://sci-hub.se/10.1109/3.161322): Fejerの論文、2領域分割によるDuty比変調があると述べている
+- [cTHG](https://doi.org/10.1038/lsa.2014.70): cTHGの三波の方程式書いてる
+
+
+
+- [DCM](https://doi.org/10.1364/JOSAB.17.000304): Fejerが解析的に逆設計できるとか言い切ったけど、設計変数がパルス位置固定の周期とDuty比であり、私の周期固定のDuty比とパルス位置変調と探索空間が明らかに違うので、できるはずない構造があるって感じの論文。
+- [DCM](https://doi.org/10.1364/ol.23.001880): 3セグ広帯域化
+- [MgO:SLTの355nm](J. Hirohashi, T. Fukui, and Y. Furukawa, "Stable half-watt 355 nm generation with PPMgSLT," in Lasers, Sources and Related Photonic Devices, paper AMB30 (2010).)
+- [cTHGの最適化アルゴリズムらしい](C.-W. Hsu, J.-Y. Lai, and S.-D. Yang, "Engineered quasi-phase matching for conversion efficiency optimization of coupled $\chi^{(2)}$ processes," in Proc. SPIE (or Optica Technical Digest), paper AMB30.)
