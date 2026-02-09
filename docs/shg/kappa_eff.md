@@ -1,55 +1,36 @@
 # Overview
-Derivation of **Generalized Effective Nonlinearity**. Defines relationship between arbitrary local shape $S_n$ and effective nonlinearity $\kappa_{\text{eff}}$.
+**Generalized Effective Coupling Coefficient** from **Baseline Expression** for Holographic QPM using **Local Fourier Coupling Coefficient**.
 
-# 1. Baseline Expression
-$$
-A_2(L) = i \kappa_{\text{mat}} A_1^2 \int_0^L s(z) e^{i \Delta k z} dz
-$$
+# Baseline Expression
+Standard QPM integral for SHG.
+$$A_2(L) = i A_1^2 \int_0^L \kappa(z) e^{i \Delta k z} dz$$
 
-# 2. Discrete Decomposition
-$$
-\int_0^L (\dots) dz \approx \sum_{n=0}^{N-1} e^{i \Delta k z_n} \int_{-\Lambda_0/2}^{\Lambda_0/2} s_n(\xi) e^{i \Delta k \xi} d\xi
-$$
+# LFCC Definition
+Integration of nonlinearity over local period $\Lambda_0$ targeting the $-\Delta k$ Fourier component to match Baseline.
+$$\mathcal{F}[\kappa](-\Delta k) = \int_{z}^{z+\Lambda_0} \kappa(z') e^{i \Delta k z'} dz'$$
 
-**Approximations:**
-1.  $\Delta k \approx G_m = 2\pi m / \Lambda_0$
-2.  $e^{i \Delta k z_n} = (-1)^m e^{i \Delta \beta z_n}$
+# Parametric Profile
+Local coordinate $z' = z + \xi$. Profile defined by shape $K$ and shift $\delta$.
 
-**Unit Cell Integral:**
-Let $s_n(\xi) = S_n(\xi - \delta_n)$.
-$$
-\int_{-\Lambda_0/2}^{\Lambda_0/2} s_n(\xi) e^{i G_m \xi} d\xi = e^{i G_m \delta_n} \underbrace{\int_{-\infty}^{\infty} S_n(\xi) e^{i G_m \xi} d\xi}_{\mathcal{F}[S_n](-G_m)}
-$$
+$K(\xi; z)$ is $\Lambda_0$-periodic with respect to $\xi$.
 
-# 3. Continuum Limit
-$$
-A_2(L) \approx i \kappa_{\text{mat}} A_1^2 \frac{1}{\Lambda_0} \sum_{n=0}^{N-1} \left[ (-1)^m \mathcal{F}[S_n](-G_m) e^{i G_m \delta_n} \right] e^{i \Delta \beta z_n} \Lambda_0 \approx i \frac{\kappa_{\text{mat}}}{\Lambda_0} A_1^2 \int_0^L \left[ (-1)^m \mathcal{F}[S(z)](-G_m) e^{i G_m \delta(z)} \right] e^{i \Delta \beta z} dz
-$$
+$$\kappa(z') = K(\xi - \delta(z); z)$$
 
-# 4. Generalized $\kappa_{\text{eff}}$
+# Fourier Shift Derivation
+Substitute profile into LFCC integral. Apply Shift Theorem $\mathcal{F}[f(x-\delta)] = e^{-ik\delta}\mathcal{F}[f]$ where $k = -\Delta k$.
 $$
-\kappa_{\text{eff}}(z) = i (-1)^m \frac{\kappa_{\text{mat}}}{\Lambda_0} e^{i G_m \delta(z)} \mathcal{F}[S(z)](-G_m)
+\begin{aligned}
+\mathcal{F}[\kappa](-\Delta k) &= e^{i \Delta k z} \mathcal{F}[K(\cdot - \delta(z); z)](-\Delta k) \\
+&= e^{i \Delta k z} \left[ e^{-i (-\Delta k) \delta(z)} \mathcal{F}[K(\cdot; z)](-\Delta k) \right] \\
+&= e^{i \Delta k z} \left[ e^{i \Delta k \delta(z)} \mathcal{F}[K(\cdot; z)](-\Delta k) \right]
+\end{aligned}
 $$
-**Components:**
-* **Phase:** $\delta(z)$
-* **Amplitude:** $\mathcal{F}[S(z)](-G_m)$
+**Resulting Effective Nonlinearity:**
+$$\kappa_{\text{eff}}(z) = \frac{1}{\Lambda_0} e^{i \Delta k \delta(z)} \mathcal{F}[K(\cdot; z)](-\Delta k)$$
 
-# 5. Inverse Design
-Target: $\kappa_{\text{target}}(z) = A_{\text{target}}(z) e^{i \Phi_{\text{target}}(z)}$
+# Inverse Design
+**1. Amplitude Control (Shape)**
+$$\frac{1}{\Lambda_0} \left| \mathcal{F}[K(\cdot; z)](-\Delta k) \right| = \text{Target Amplitude}(z)$$
 
-**Step 1: Position (Phase)**
-$$
-\delta(z) = \frac{1}{G_m} \left( \Phi_{\text{target}}(z) - \frac{\pi}{2} - m\pi - \arg(\mathcal{F}[S(z)](-G_m)) \right)
-$$
-
-**Step 2: Profile (Amplitude)**
-$$
-|\mathcal{F}[S(z)](-G_m)| = \frac{\Lambda_0 A_{\text{target}}(z)}{\kappa_{\text{mat}}}
-$$
-
-# Key Concerns
-The amplitude term should be explicitly written as a function of $z$. 
-The current notation $\mathcal{F}[S(z)](-G_m)$ looks constant, but the shape $S$ changes along the propagation axis. 
-
-# Task
-Correct formulation.
+**2. Phase Control (Position)**
+$$\Delta k \cdot \delta(z) + \arg(\mathcal{F}[K(\cdot; z)](-\Delta k)) = \text{Target Phase}(z)$$
