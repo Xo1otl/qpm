@@ -122,12 +122,12 @@ def merge_and_filter_domains(widths, kappas, threshold=1.0e-6):
 
 def main():
     # --- Configuration ---
-    num_periods_periodic = 2000
-    num_periods_holographic = num_periods_periodic
+    num_periods_periodic = 1000
+    num_periods_holographic = num_periods_periodic * 3
     design_wl = 1.064
     design_temp = 70.0
     kappa_mag = 1.31e-5 / (2 / np.pi)
-    spatial_sigma_ratio = 4.0
+    spatial_sigma_ratio = 8.0
 
     # Physics parameters
     dk_val = calc_twm_delta_k(np.array(design_wl), np.array(design_wl), design_temp)
@@ -304,6 +304,23 @@ def main():
     # plt.show()
     plt.savefig("dithered_Lc_demo.png", dpi=150)
     print("Saved dithered_Lc_demo.png")
+
+    # --- Save Plotting Data to CSV ---
+    print("Saving plotting data to separate CSV files...")
+
+    # 1. Spectrum Data
+    spectrum_data = np.column_stack((wls, spectrum_ideal, spectrum, spectrum_periodic, phase_sim))
+    spectrum_header = "wavelength_um,target_amp,holographic_amp,periodic_amp,phase_rad"
+    np.savetxt("holographic_spectrum.csv", spectrum_data, delimiter=",", header=spectrum_header, comments="")
+    print("Saved holographic_spectrum.csv")
+
+    # 2. Structure Data
+    z_starts = np.concatenate([np.array([0.0]), np.cumsum(final_widths[:-1])])
+    domain_indices = np.arange(len(final_widths))
+    structure_data = np.column_stack((domain_indices, z_starts, final_widths))
+    structure_header = "domain_index,structure_z_um,structure_width_um"
+    np.savetxt("holographic_structure.csv", structure_data, delimiter=",", header=structure_header, fmt="%d,%.18e,%.18e", comments="")
+    print("Saved holographic_structure.csv")
 
 
 if __name__ == "__main__":

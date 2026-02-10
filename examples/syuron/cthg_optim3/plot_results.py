@@ -93,7 +93,6 @@ def construct_noro_structure():
     return np.array(w_list)
 
 
-
 def plot_structure(ax, w, title):
     """Plots domain width vs z-coordinate (um) using POINTS."""
     # Compute cumulative sum of widths to get z positions in microns
@@ -126,6 +125,7 @@ def main():
     parser = argparse.ArgumentParser(description="Plot optimization results.")
     parser.add_argument("--file", type=str, required=True, help="Path to pkl file.")
     parser.add_argument("--scalar", type=float, default=1.0, help="Font size scaling factor.")
+    parser.add_argument("--export-csv", action="store_true", help="Export plotted data to CSV files.")
     args = parser.parse_args()
 
     setup_font_scaling(args.scalar)
@@ -173,9 +173,35 @@ def main():
     plot_amplitudes(axs_noro[1], z_noro, amps_noro, "振幅発展")
     fig_noro.savefig("fig_noro.png", dpi=300)
 
-    print(f"Initial Max THG: {np.max(amps_init[:, 2]):.4f}")
     print(f"Final Max THG:   {np.max(amps_final[:, 2]):.4f}")
     print("Noro THG = 1.704!")
+
+    if args.export_csv:
+        print("\nExporting data to CSV...")
+
+        # Helper to save
+        def save_structure(name, w):
+            z_um = np.cumsum(w)
+            data = np.column_stack((z_um, w))
+            np.savetxt(f"{name}_structure.csv", data, delimiter=",", header="z_um,width_um", comments="")
+            print(f"Saved {name}_structure.csv")
+
+        def save_evolution(name, z, amps):
+            data = np.column_stack((z, amps))
+            np.savetxt(f"{name}_evolution.csv", data, delimiter=",", header="z_um,fw_amp,sh_amp,th_amp", comments="")
+            print(f"Saved {name}_evolution.csv")
+
+        # Initial
+        save_structure("initial", w_init / 1000)
+        save_evolution("initial", z_init / 1000, amps_init)
+
+        # Final
+        save_structure("final", w_final / 1000)
+        save_evolution("final", z_final / 1000, amps_final)
+
+        # Noro
+        save_structure("noro", w_noro / 1000)
+        save_evolution("noro", z_noro / 1000, amps_noro)
 
 
 if __name__ == "__main__":

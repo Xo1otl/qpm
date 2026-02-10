@@ -1,3 +1,4 @@
+import csv
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -17,8 +18,8 @@ memory = Memory(location=".cache", verbose=0)
 
 @dataclass
 class SimulationConfig:
-    shg_len: float = 5000.0
-    sfg_len: float = 5000.0
+    shg_len: float = 10000.0
+    sfg_len: float = 15000.0
     kappa_shg_base: float = 1.5e-4 / (2 / jnp.pi)
     temperature: float = 70.0
     wavelength: float = 1.064
@@ -55,7 +56,7 @@ def setup_structure(config: SimulationConfig) -> SimulationStructure:
         [
             jnp.full(int(config.shg_len / jnp.abs(jnp.pi / dk_shg)), jnp.abs(jnp.pi / dk_shg)),
             jnp.full(int(config.sfg_len / jnp.abs(jnp.pi / dk_sfg)), jnp.abs(jnp.pi / dk_sfg)),
-        ]
+        ],
     )
 
     sign_pattern = jnp.array([1.0 if i % 2 == 0 else -1.0 for i in range(len(widths))])
@@ -144,10 +145,10 @@ def run_scipy(struct: SimulationStructure) -> tuple[SimulationResult, float]:
 
 
 def plot_comparison(res_map: list[tuple[SimulationResult, str, str]], struct: SimulationStructure, filename: str) -> None:
-    plt.rcParams.update({"legend.fontsize": 16})
+    plt.rcParams.update({"legend.fontsize": 20})
     # Reverted to 4 subplots
     fig, axes = plt.subplots(4, 1, figsize=(20, 20), sharex=True)
-    metrics = [("a1", "|A1|"), ("a2", "|A2|"), ("a3", "|A3|"), ("total_power", "Total Power")]
+    metrics = [("a1", r"|A1| $W^{{-1/2}}$"), ("a2", r"|A2| $W^{{-1/2}}$"), ("a3", r"|A3| $W^{{-1/2}}$"), ("total_power", "Total Power W")]
 
     # Extract kappa base values (magnitude) for the legend/title
     k_shg_mag = jnp.abs(struct.kappa_shg_vals[0])
@@ -166,12 +167,38 @@ def plot_comparison(res_map: list[tuple[SimulationResult, str, str]], struct: Si
             ax.plot(res.z, data, label=name, linestyle=style, linewidth=3)
 
         ax.set_ylabel(label, fontsize=24)
-        ax.legend(loc="upper right")
+        ax.legend(loc="upper left")
         ax.grid(visible=True, linestyle=":")
 
-    axes[-1].set_xlabel("Position", fontsize=24)
+    axes[-1].set_xlabel(r"Position $\mu$m", fontsize=24)
     plt.savefig(filename)
     print(f"Plot saved to {filename}")
+
+
+def save_comparison_csv(res_map: list[tuple[SimulationResult, str, str]], filename: str) -> None:
+    if not res_map:
+        return
+
+    # Use z from the first result
+    z = res_map[0][0].z
+
+    headers = ["z"]
+    data_columns = [z]
+
+    for res, name, _ in res_map:
+        headers.extend([f"{name} |A1|", f"{name} |A2|", f"{name} |A3|", f"{name} Total Power"])
+        data_columns.append(np.abs(res.a1))
+        data_columns.append(np.abs(res.a2))
+        data_columns.append(np.abs(res.a3))
+        data_columns.append(res.total_power)
+
+    rows = zip(*data_columns, strict=True)
+
+    with open(filename, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        writer.writerows(rows)
+    print(f"CSV data saved to {filename}")
 
 
 def main() -> None:
@@ -186,7 +213,7 @@ def main() -> None:
 
     print("Running Super Step ...")
     struct_mc = setup_structure(config)
-    struct_mc.block_size = 100
+    struct_mc.block_size = 1
     lfaga_res, t_lfaga = run_jax_sim(struct_mc, cwes2.simulate_lfaga_with_trace)
     print(f"Super Step time: {t_lfaga:.6f} s")
 
@@ -194,15 +221,18 @@ def main() -> None:
     ver_res, t_ver = run_scipy(struct_mc)
     print(f"SciPy DOP853 time: {t_ver:.6f} s")
 
+    results = [
+        (magnus_res, f"Magnus (BS={struct_ss.block_size}, {t_magnus:.3f}s)", "-"),
+        (lfaga_res, f"Super Step (BS={struct_mc.block_size}, {t_lfaga:.3f}s)", "--"),
+        (ver_res, "DOP853", ":"),
+    ]
+
     plot_comparison(
-        [
-            (magnus_res, f"Magnus (BS={struct_ss.block_size}, {t_magnus:.3f}s)", "-"),
-            (lfaga_res, f"Super Step (BS={struct_mc.block_size}, {t_lfaga:.3f}s)", "--"),
-            (ver_res, "DOP853", ":"),
-        ],
+        results,
         struct_mc,
         "amp_trace_comparison.png",
     )
+    save_comparison_csv(results, "amp_trace_comparison.csv")
 
 
 if __name__ == "__main__":
